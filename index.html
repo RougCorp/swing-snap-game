@@ -478,7 +478,14 @@ const Tutorial={shown:false,shouldShow(){return !localStorage.getItem('swingSnap
 
 // === MISSIONS ===
 function getDailyMissions(){
-const seed=todaySeed();const r=(n)=>(Math.sin(seed*n)*10000)%1;const abs=Math.abs;
+const today=todaySeed();
+// Vérifier si on a déjà généré les missions pour aujourd'hui
+if(!DataManager.data.dailyMissionsCache)DataManager.data.dailyMissionsCache={};
+if(DataManager.data.dailyMissionsCache.date===today&&DataManager.data.dailyMissionsCache.missions){
+return DataManager.data.dailyMissionsCache.missions;
+}
+// Générer de nouvelles missions
+const seed=today;const r=(n)=>(Math.sin(seed*n)*10000)%1;const abs=Math.abs;
 const pool=[
 {descKey:'mi_reach',stat:'bestRun',base:8,scale:3,gems:40},
 {descKey:'mi_play',stat:'dailyRuns',base:3,scale:1,gems:25},
@@ -493,6 +500,9 @@ const p=pool[idx];
 const goal=p.base+Math.floor(abs(r(i+10))*p.scale*diff);
 missions.push({id:'d'+i,name:I18N.t('mi_defi')+' #'+(i+1),desc:I18N.t(p.descKey,goal),goal,stat:p.stat,reward:Math.min(100,p.gems+diff*2),rewardType:'gems',daily:true});
 }
+// Sauvegarder dans le cache
+DataManager.data.dailyMissionsCache={date:today,missions:missions};
+DataManager.save();
 return missions;
 }
 
@@ -501,19 +511,62 @@ const hs=DataManager.data.highScore,missions=[];
 const runs=DataManager.data.stats.totalRuns||0;
 const gems=DataManager.data.stats.totalGemsCollected||0;
 const total=DataManager.data.stats.totalScore||0;
+// Initialiser le cache des missions de progression si nécessaire
+if(!DataManager.data.progressionMissionsCache)DataManager.data.progressionMissionsCache={};
 function nextTier(curr,milestones,step){for(const m of milestones)if(curr<m)return m;const last=milestones[milestones.length-1];return last+(Math.floor((curr-last)/step)+1)*step;}
 function tierReward(goal,base,max){return Math.min(max,base+Math.floor(goal/5));}
-const sg=nextTier(hs,[5,15,30,50,80,120,170,230,300],50);
+// Mission Score - vérifier si on a un objectif en cache
+let sg;
+if(DataManager.data.progressionMissionsCache.s1_goal&&hs<DataManager.data.progressionMissionsCache.s1_goal){
+sg=DataManager.data.progressionMissionsCache.s1_goal;
+}else{
+sg=nextTier(hs,[5,15,30,50,80,120,170,230,300],50);
+DataManager.data.progressionMissionsCache.s1_goal=sg;
+}
 missions.push({id:'s1',name:I18N.t('mi_defi')+' '+I18N.t('stat_best'),desc:I18N.t('mi_reach',sg),goal:sg,stat:'bestRun',reward:tierReward(sg,15,150),rewardType:'gems'});
-const rg=nextTier(runs,[5,20,50,100,200,350,500,750,1000],500);
+// Mission Parties
+let rg;
+if(DataManager.data.progressionMissionsCache.r1_goal&&runs<DataManager.data.progressionMissionsCache.r1_goal){
+rg=DataManager.data.progressionMissionsCache.r1_goal;
+}else{
+rg=nextTier(runs,[5,20,50,100,200,350,500,750,1000],500);
+DataManager.data.progressionMissionsCache.r1_goal=rg;
+}
 missions.push({id:'r1',name:I18N.t('mi_defi')+' '+I18N.t('stat_runs'),desc:I18N.t('mi_play',rg),goal:rg,stat:'totalRuns',reward:tierReward(rg,15,150),rewardType:'gems'});
-const gg=nextTier(gems,[10,30,75,150,300,500,800,1200,2000],1000);
+// Mission Gemmes
+let gg;
+if(DataManager.data.progressionMissionsCache.g1_goal&&gems<DataManager.data.progressionMissionsCache.g1_goal){
+gg=DataManager.data.progressionMissionsCache.g1_goal;
+}else{
+gg=nextTier(gems,[10,30,75,150,300,500,800,1200,2000],1000);
+DataManager.data.progressionMissionsCache.g1_goal=gg;
+}
 missions.push({id:'g1',name:I18N.t('mi_defi')+' Gems',desc:I18N.t('mi_collect',gg),goal:gg,stat:'totalGemsCollected',reward:tierReward(gg,15,150),rewardType:'gems'});
-const tg=nextTier(total,[50,200,500,1000,2000,3500,5000,8000,12000],5000);
+// Mission Pivots Total
+let tg;
+if(DataManager.data.progressionMissionsCache.t1_goal&&total<DataManager.data.progressionMissionsCache.t1_goal){
+tg=DataManager.data.progressionMissionsCache.t1_goal;
+}else{
+tg=nextTier(total,[50,200,500,1000,2000,3500,5000,8000,12000],5000);
+DataManager.data.progressionMissionsCache.t1_goal=tg;
+}
 missions.push({id:'t1',name:I18N.t('mi_defi')+' '+I18N.t('stat_pivots'),desc:I18N.t('mi_cumul',tg),goal:tg,stat:'totalScore',reward:tierReward(tg,15,150),rewardType:'gems'});
-// Background unlock missions
-missions.push({id:'bg_mystical',name:I18N.t('mi_defi')+' '+I18N.t('mystical'),desc:I18N.t('mi_reach',15),goal:15,stat:'bestRun',reward:'mystical',rewardType:'bg'});
-missions.push({id:'bg_matrix',name:I18N.t('mi_defi')+' Hacker',desc:I18N.t('mi_collect',100),goal:100,stat:'totalGemsCollected',reward:'matrix',rewardType:'bg'});
+// Background unlock missions (fixes)
+let bg_mystical_goal=15;
+if(DataManager.data.progressionMissionsCache.bg_mystical_goal&&hs<DataManager.data.progressionMissionsCache.bg_mystical_goal){
+bg_mystical_goal=DataManager.data.progressionMissionsCache.bg_mystical_goal;
+}else{
+DataManager.data.progressionMissionsCache.bg_mystical_goal=bg_mystical_goal;
+}
+missions.push({id:'bg_mystical',name:I18N.t('mi_defi')+' '+I18N.t('mystical'),desc:I18N.t('mi_reach',bg_mystical_goal),goal:bg_mystical_goal,stat:'bestRun',reward:'mystical',rewardType:'bg'});
+let bg_matrix_goal=100;
+if(DataManager.data.progressionMissionsCache.bg_matrix_goal&&gems<DataManager.data.progressionMissionsCache.bg_matrix_goal){
+bg_matrix_goal=DataManager.data.progressionMissionsCache.bg_matrix_goal;
+}else{
+DataManager.data.progressionMissionsCache.bg_matrix_goal=bg_matrix_goal;
+}
+missions.push({id:'bg_matrix',name:I18N.t('mi_defi')+' Hacker',desc:I18N.t('mi_collect',bg_matrix_goal),goal:bg_matrix_goal,stat:'totalGemsCollected',reward:'matrix',rewardType:'bg'});
+DataManager.save();
 return missions;
 }
 
@@ -683,7 +736,34 @@ this.bgSkins={
 const time=Date.now()*0.001;
 const g=ctx.createLinearGradient(0,0,0,h);g.addColorStop(0,'#F5F0E8');g.addColorStop(1,'#EDE5D8');
 ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
-for(let i=0;i<80;i++){const x=(i*47+time*10)%w,y=(i*31+time*8)%h;ctx.fillStyle=`rgba(142,99,180,${0.03+0.02*Math.sin(time+i)})`;ctx.beginPath();ctx.arc(x,y,2+Math.sin(time+i)*0.5,0,6.28);ctx.fill();}
+// Particules de lavande plus visibles et plus grandes
+for(let i=0;i<120;i++){
+const x=(i*47+time*15)%w;
+const y=(i*31+time*12)%h;
+const size=3+Math.sin(time*2+i)*2;
+const alpha=0.15+0.1*Math.sin(time*1.5+i);
+ctx.fillStyle=`rgba(142,99,180,${alpha})`;
+ctx.shadowBlur=8;
+ctx.shadowColor='rgba(142,99,180,0.4)';
+ctx.beginPath();
+ctx.arc(x,y,size,0,6.28);
+ctx.fill();
+}
+ctx.shadowBlur=0;
+// Papillons animés
+for(let i=0;i<5;i++){
+const bx=((i*150+time*30)%w);
+const by=h*0.3+(Math.sin(time+i*2)*h*0.3);
+ctx.fillStyle='rgba(255,200,100,0.6)';
+ctx.save();
+ctx.translate(bx,by);
+ctx.rotate(Math.sin(time*3+i)*0.3);
+ctx.beginPath();
+ctx.ellipse(-3,0,4,2,0,0,6.28);
+ctx.ellipse(3,0,4,2,0,0,6.28);
+ctx.fill();
+ctx.restore();
+}
 ctx.fillStyle='rgba(74, 55, 40, 0.04)';
 for(let x=32;x<w;x+=32)for(let y=32;y<h;y+=32){ctx.beginPath();ctx.arc(x,y,1.2,0,6.28);ctx.fill();}
 }},
@@ -743,16 +823,19 @@ this.particles.forEach(p=>{p.y+=p.vy;p.x+=p.vx;p.life-=0.006;if(p.life<0||p.y<0)
 ctx.fillStyle=`rgba(255,${150+Math.random()*105},${Math.random()*50},${p.life*0.8})`;ctx.beginPath();ctx.arc(p.x,p.y,p.size*p.life,0,6.28);ctx.fill();});
 }},
 
-'candy':{price:450,name:'Pays des Bonbons',effectColor:'#E91E63',init(ctx,w,h){this.sweets=[];this.sparkles=[];for(let i=0;i<45;i++)this.sweets.push({x:Math.random()*w,y:Math.random()*h,rot:Math.random()*6.28,type:Math.floor(Math.random()*5),speed:0.15+Math.random()*0.35,size:6+Math.random()*12});for(let i=0;i<30;i++)this.sparkles.push({x:Math.random()*w,y:Math.random()*h,size:1+Math.random()*2,pulse:Math.random()*6.28});},draw(ctx,w,h){
+'candy':{price:450,name:'Pays des Bonbons',effectColor:'#E91E63',init(ctx,w,h){this.sweets=[];this.sparkles=[];for(let i=0;i<70;i++)this.sweets.push({x:Math.random()*w,y:Math.random()*h,rot:Math.random()*6.28,type:Math.floor(Math.random()*5),speed:0.25+Math.random()*0.55,size:8+Math.random()*16});for(let i=0;i<50;i++)this.sparkles.push({x:Math.random()*w,y:Math.random()*h,size:2+Math.random()*3,pulse:Math.random()*6.28});},draw(ctx,w,h){
 const time=Date.now()*0.001;
 const g=ctx.createLinearGradient(0,0,w,h);g.addColorStop(0,'#FFD4E5');g.addColorStop(0.33,'#FFE4F0');g.addColorStop(0.66,'#F8E0FF');g.addColorStop(1,'rgb(255,240,255)');
 ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
 if(!this.sweets)this.init(ctx,w,h);
-this.sparkles.forEach(s=>{s.pulse+=0.15;ctx.fillStyle=`rgba(255,255,255,${0.5+0.5*Math.sin(s.pulse)})`;ctx.beginPath();ctx.arc(s.x,s.y,s.size,0,6.28);ctx.fill();});
-this.sweets.forEach(s=>{s.y-=s.speed;s.rot+=0.02;s.x+=Math.sin(time+s.rot)*0.5;if(s.y<-30){s.y=h+30;s.x=Math.random()*w;}
+// Étincelles plus visibles
+this.sparkles.forEach(s=>{s.pulse+=0.18;const alpha=0.6+0.4*Math.sin(s.pulse);ctx.fillStyle=`rgba(255,255,255,${alpha})`;ctx.shadowBlur=6;ctx.shadowColor='rgba(255,255,255,0.8)';ctx.beginPath();ctx.arc(s.x,s.y,s.size,0,6.28);ctx.fill();});
+ctx.shadowBlur=0;
+// Bonbons plus gros et plus visibles
+this.sweets.forEach(s=>{s.y-=s.speed;s.rot+=0.03;s.x+=Math.sin(time+s.rot)*0.8;if(s.y<-40){s.y=h+40;s.x=Math.random()*w;}
 ctx.save();ctx.translate(s.x,s.y);ctx.rotate(s.rot);
 const colors=['#FF69B4','#FFB6C1','#87CEEB','#98FB98','#DDA0DD'];
-ctx.fillStyle=colors[s.type];ctx.shadowBlur=8;ctx.shadowColor=colors[s.type].replace(')',',0.5)').replace('rgb','rgba');
+ctx.fillStyle=colors[s.type];ctx.shadowBlur=12;ctx.shadowColor=colors[s.type].replace(')',',0.6)').replace('rgb','rgba');
 if(s.type===0){ctx.beginPath();ctx.arc(0,0,s.size,0,6.28);ctx.fill();}
 else if(s.type===1){ctx.fillRect(-s.size*0.5,-s.size*0.5,s.size,s.size);}
 else if(s.type===2){ctx.beginPath();ctx.moveTo(0,-s.size);ctx.lineTo(s.size*0.8,s.size*0.8);ctx.lineTo(-s.size*0.8,s.size*0.8);ctx.closePath();ctx.fill();}
@@ -891,17 +974,21 @@ this.rain.forEach(r=>{r.y+=r.speed;if(r.y>h){r.y=-25;r.x=Math.random()*w;}
 ctx.strokeStyle=`rgba(150,180,200,${r.alpha})`;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(r.x,r.y);ctx.lineTo(r.x-1.5,r.y+r.size);ctx.stroke();});
 }},
 
-'desert':{price:520,name:'Désert',effectColor:'#F4A460',init(ctx,w,h){this.sand=[];this.heat=[];for(let i=0;i<60;i++)this.sand.push({x:Math.random()*w,y:Math.random()*h,speed:0.4+Math.random()*2,size:1+Math.random()*3,alpha:0.3+Math.random()*0.4});for(let i=0;i<8;i++)this.heat.push({y:h*0.4+Math.random()*h*0.3,amp:5+Math.random()*15,pulse:Math.random()*6.28});},draw(ctx,w,h){
+'desert':{price:520,name:'Désert',effectColor:'#F4A460',init(ctx,w,h){this.sand=[];this.heat=[];this.cacti=[];for(let i=0;i<100;i++)this.sand.push({x:Math.random()*w,y:Math.random()*h,speed:0.8+Math.random()*3,size:2+Math.random()*4,alpha:0.5+Math.random()*0.4});for(let i=0;i<12;i++)this.heat.push({y:h*0.4+Math.random()*h*0.3,amp:8+Math.random()*20,pulse:Math.random()*6.28});for(let i=0;i<3;i++)this.cacti.push({x:Math.random()*w,y:h*0.7+Math.random()*h*0.2,sway:Math.random()*6.28});},draw(ctx,w,h){
 const g=ctx.createLinearGradient(0,0,0,h);g.addColorStop(0,'#4A8CB8');g.addColorStop(0.2,'#87CEEB');g.addColorStop(0.4,'#F4D03F');g.addColorStop(0.7,'#D4AC0D');g.addColorStop(1,'#B8960A');
 ctx.fillStyle=g;ctx.fillRect(0,0,w,h);
 if(!this.sand)this.init(ctx,w,h);
 const time=Date.now()*0.001;
-ctx.fillStyle='rgba(180,150,80,0.25)';ctx.beginPath();ctx.moveTo(0,h);for(let x=0;x<=w;x+=40){ctx.lineTo(x,h-70+Math.sin(x*0.015+time*0.8)*25);}ctx.lineTo(w,h);ctx.fill();
-ctx.fillStyle='rgba(200,170,100,0.2)';ctx.beginPath();ctx.moveTo(0,h);for(let x=0;x<=w;x+=30){ctx.lineTo(x,h-40+Math.sin(x*0.02+time*0.5)*15);}ctx.lineTo(w,h);ctx.fill();
-this.heat.forEach(wv=>{wv.pulse+=0.03;ctx.save();ctx.globalAlpha=0.08;ctx.strokeStyle='#FFD700';ctx.lineWidth=2;ctx.beginPath();for(let x=0;x<w;x+=5){const y=wv.y+Math.sin(x*0.03+time*2+wv.pulse)*wv.amp;ctx.lineTo(x,y);}ctx.stroke();ctx.restore();});
+ctx.fillStyle='rgba(180,150,80,0.35)';ctx.beginPath();ctx.moveTo(0,h);for(let x=0;x<=w;x+=40){ctx.lineTo(x,h-70+Math.sin(x*0.015+time*0.8)*25);}ctx.lineTo(w,h);ctx.fill();
+ctx.fillStyle='rgba(200,170,100,0.3)';ctx.beginPath();ctx.moveTo(0,h);for(let x=0;x<=w;x+=30){ctx.lineTo(x,h-40+Math.sin(x*0.02+time*0.5)*15);}ctx.lineTo(w,h);ctx.fill();
+// Vagues de chaleur plus visibles
+this.heat.forEach(wv=>{wv.pulse+=0.05;ctx.save();ctx.globalAlpha=0.2;ctx.strokeStyle='#FFD700';ctx.lineWidth=3;ctx.shadowBlur=10;ctx.shadowColor='rgba(255,215,0,0.3)';ctx.beginPath();for(let x=0;x<w;x+=4){const y=wv.y+Math.sin(x*0.03+time*3+wv.pulse)*wv.amp;ctx.lineTo(x,y);}ctx.stroke();ctx.restore();});
+// Tempête de sable plus visible
 this.sand.forEach(s=>{s.x+=s.speed;if(s.x>w){s.x=-5;s.y=Math.random()*h;}
-ctx.fillStyle=`rgba(200,160,80,${s.alpha})`;ctx.beginPath();ctx.arc(s.x,s.y,s.size,0,6.28);ctx.fill();});
-ctx.fillStyle='#FFD700';ctx.shadowBlur=50;ctx.shadowColor='rgba(255,215,0,0.4)';ctx.beginPath();ctx.arc(w-70,70,35+Math.sin(time*0.5)*3,0,6.28);ctx.fill();ctx.shadowBlur=0;
+ctx.fillStyle=`rgba(200,160,80,${s.alpha})`;ctx.shadowBlur=4;ctx.shadowColor='rgba(200,160,80,0.5)';ctx.beginPath();ctx.arc(s.x,s.y,s.size,0,6.28);ctx.fill();});
+ctx.shadowBlur=0;
+// Soleil pulsant
+ctx.fillStyle='#FFD700';ctx.shadowBlur=60;ctx.shadowColor='rgba(255,215,0,0.6)';ctx.beginPath();ctx.arc(w-70,70,40+Math.sin(time*0.8)*5,0,6.28);ctx.fill();ctx.shadowBlur=0;
 }},
 
 'rainbow':{price:850,name:'Arc-en-Ciel',effectColor:'#FF69B4',draw(ctx,w,h){
@@ -1273,7 +1360,19 @@ div.innerHTML=`<div style="display:flex;justify-content:space-between;align-item
 if(done&&!claimed){
 div.style.cursor='pointer';
 div.onclick=()=>{
-if(!isDaily){if(!DataManager.data.claimedMissions)DataManager.data.claimedMissions=[];DataManager.data.claimedMissions.push(claimKey);}
+if(!isDaily){
+if(!DataManager.data.claimedMissions)DataManager.data.claimedMissions=[];
+DataManager.data.claimedMissions.push(claimKey);
+// Effacer le cache de l'objectif pour que la mission passe au palier suivant
+if(DataManager.data.progressionMissionsCache){
+if(m.id==='s1')delete DataManager.data.progressionMissionsCache.s1_goal;
+if(m.id==='r1')delete DataManager.data.progressionMissionsCache.r1_goal;
+if(m.id==='g1')delete DataManager.data.progressionMissionsCache.g1_goal;
+if(m.id==='t1')delete DataManager.data.progressionMissionsCache.t1_goal;
+if(m.id==='bg_mystical')delete DataManager.data.progressionMissionsCache.bg_mystical_goal;
+if(m.id==='bg_matrix')delete DataManager.data.progressionMissionsCache.bg_matrix_goal;
+}
+}
 else{if(!DataManager.data.claimedDailies)DataManager.data.claimedDailies=[];DataManager.data.claimedDailies.push(claimKey);}
 if(m.rewardType==='gems'){DataManager.data.gems+=m.reward;showToast(I18N.t('toast_gems_bonus',m.reward));}
 else if(m.rewardType==='ball'){if(!DataManager.data.skins.includes(m.reward))DataManager.data.skins.push(m.reward);showToast(I18N.t('toast_skin_unlock'));}
