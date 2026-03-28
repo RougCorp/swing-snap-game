@@ -1,0 +1,12 @@
+node_modules/
+.DS_Store
+*.log
+ios/App/Pods/
+ios/App/App.xcworkspace/xcuserdata/
+ios/App/App.xcodeproj/xcuserdata/
+android/.gradle/
+android/app/build/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+.idea/
+*.iml
