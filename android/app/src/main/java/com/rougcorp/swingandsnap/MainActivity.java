@@ -1,4 +1,4 @@
-package com.votrecompte.swingandsnap;
+package com.rougcorp.swingandsnap;
 
 import com.getcapacitor.BridgeActivity;
 
