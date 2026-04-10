@@ -1,6 +1,17 @@
 node_modules/
 .DS_Store
 *.log
+
+# Security: never commit keystore or credentials
+keystore/
+*.jks
+*.keystore
+key.properties
+android/key.properties
+
+# Local editor/IDE
+.claude/
+.vscode/
 ios/App/Pods/
 ios/App/App.xcworkspace/xcuserdata/
 ios/App/App.xcodeproj/xcuserdata/
