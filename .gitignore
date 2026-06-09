@@ -21,3 +21,7 @@ android/build/
 android/capacitor-cordova-android-plugins/build/
 .idea/
 *.iml
+
+# Firebase service account key (SECRET)
+tools/migrate-alltime/serviceAccountKey.json
+tools/migrate-alltime/node_modules/

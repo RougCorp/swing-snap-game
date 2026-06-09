@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Swing & Snap — Store Screenshots Preview</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0d0d18; color: #eee; font-family: system-ui, sans-serif; padding: 20px; }
+  h1 { text-align: center; font-size: 1.4rem; color: #a78bfa; margin-bottom: 6px; }
+  .subtitle { text-align: center; font-size: .8rem; color: #666; margin-bottom: 30px; }
+  .screen-block { margin-bottom: 50px; }
+  .screen-title {
+    font-size: 1rem; font-weight: 800; color: #f0c040;
+    text-transform: uppercase; letter-spacing: .08em;
+    border-left: 4px solid #a78bfa; padding-left: 12px;
+    margin-bottom: 16px;
+  }
+  .lang-row { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+  .lang-card {
+    flex: 0 0 160px; display: flex; flex-direction: column; align-items: center;
+    background: #1a1a2e; border-radius: 12px; padding: 10px 8px 8px;
+    border: 1px solid #2a2a4a;
+  }
+  .lang-card:hover { border-color: #a78bfa; }
+  .lang-label {
+    font-size: .75rem; font-weight: 800; color: #a78bfa;
+    text-transform: uppercase; letter-spacing: .1em; margin-bottom: 8px;
+  }
+  .lang-card img {
+    width: 100%; border-radius: 8px; cursor: pointer;
+    transition: transform .15s;
+  }
+  .lang-card img:hover { transform: scale(1.03); }
+  /* Lightbox */
+  #lb { display:none; position:fixed; inset:0; background:rgba(0,0,0,.92);
+        z-index:999; align-items:center; justify-content:center; flex-direction:column; gap:14px; }
+  #lb.open { display:flex; }
+  #lb img { max-height: 88vh; max-width: 95vw; border-radius: 16px; }
+  #lb .lb-close { position:fixed; top:16px; right:22px; font-size:2rem; cursor:pointer; color:#fff; }
+  #lb .lb-caption { color:#aaa; font-size:.85rem; }
+</style>
+</head>
+<body>
+<h1>🎮 Swing & Snap v1.3 — Store Screenshots</h1>
+<p class="subtitle">1290 × 2796 px · 8 écrans · 6 langues · Cliquez pour agrandir</p>
+
+<div id="gallery"></div>
+
+<div id="lb">
+  <span class="lb-close" onclick="closeLb()">✕</span>
+  <img id="lb-img" src="">
+  <div class="lb-caption" id="lb-cap"></div>
+</div>
+
+<script>
+const SCREENS = [
+  { id:'menu',        label:'01 · Menu principal' },
+  { id:'perfect_zone',label:'02 · Zone Perfect & ×4' },
+  { id:'blitz',       label:'03 · Mode BLITZ' },
+  { id:'classement',  label:'04 · Classement mondial' },
+  { id:'powerups_hud',label:'05 · Power-ups actifs en jeu' },
+  { id:'boutique_pu', label:'06 · Boutique Power-ups' },
+  { id:'streak',      label:'07 · Série quotidienne' },
+  { id:'balls',       label:'08 · Collection de balles' },
+];
+const LANGS = ['fr','en','es','de','it','pt'];
+const LANG_NAMES = {fr:'🇫🇷 Français',en:'🇬🇧 English',es:'🇪🇸 Español',de:'🇩🇪 Deutsch',it:'🇮🇹 Italiano',pt:'🇵🇹 Português'};
+
+const gallery = document.getElementById('gallery');
+SCREENS.forEach((s, i) => {
+  const block = document.createElement('div');
+  block.className = 'screen-block';
+  block.innerHTML = `<div class="screen-title">${s.label}</div><div class="lang-row" id="row-${i}"></div>`;
+  gallery.appendChild(block);
+  const row = document.getElementById(`row-${i}`);
+  LANGS.forEach(lang => {
+    const n = String(i+1).padStart(2,'0');
+    const src = `screenshots/${lang}/swing_snap_${lang}_${n}_${s.id}.png`;
+    const card = document.createElement('div');
+    card.className = 'lang-card';
+    card.innerHTML = `<div class="lang-label">${LANG_NAMES[lang]}</div>
+      <img src="${src}" alt="${lang} ${s.id}" onclick="openLb('${src}','${LANG_NAMES[lang]} · ${s.label}')">`;
+    row.appendChild(card);
+  });
+});
+
+function openLb(src, cap) {
+  document.getElementById('lb-img').src = src;
+  document.getElementById('lb-cap').textContent = cap;
+  document.getElementById('lb').classList.add('open');
+}
+function closeLb() { document.getElementById('lb').classList.remove('open'); }
+document.getElementById('lb').addEventListener('click', e => { if(e.target===e.currentTarget) closeLb(); });
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeLb(); });
+</script>
+</body>
+</html>

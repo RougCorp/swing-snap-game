@@ -1,0 +1,13 @@
+SWING & SNAP v1.3 — Screenshots pour les stores
+=================================================
+
+📱 iPhone_67/   → 1290×2796 px  →  App Store : slot "6.7 inch Display"
+📱 iPhone_65/   → 1242×2688 px  →  App Store : slot "6.5 inch Display"
+📟 iPad_13/     → 2048×2732 px  →  App Store : slot "iPad 13 inch" + Google Play tablette
+📟 Tablette_7/  → 1200×1920 px  →  Google Play : onglet Tablette 7"
+📟 Tablette_10/ → 1600×2560 px  →  Google Play : onglet Tablette 10"
+
+Chaque dossier contient 6 sous-dossiers de langue : fr/ en/ es/ de/ it/ pt/
+Chaque langue contient 8 screenshots (01 à 08).
+
+Captures : BLITZ, Zone Perfect, Classement mondial, Power-ups, Streak, Boutique, Collection
