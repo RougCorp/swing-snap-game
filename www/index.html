@@ -147,6 +147,8 @@ input:checked+.toggle-slider:before{transform:translateX(20px)}
 .star-big{font-size:1.8rem;transition:transform .2s;display:inline-block}
 .star-big.lit{filter:drop-shadow(0 0 6px gold)}
 .star-big.dim{opacity:.25;filter:grayscale(1)}
+.star-big.fire{filter:drop-shadow(0 0 9px #ff6a00) drop-shadow(0 0 4px #ffd000);animation:starFire .7s ease-in-out infinite alternate}
+@keyframes starFire{from{transform:scale(1) rotate(-4deg)}to{transform:scale(1.18) rotate(4deg)}}
 #loadingScreen{position:fixed;top:0;left:0;width:100%;height:100%;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:200;transition:opacity .5s}
 #loadingScreen.hidden{opacity:0;pointer-events:none}
 .loader-ring{width:40px;height:40px;border:4px solid rgba(142,99,180,.2);border-top-color:var(--accent);border-radius:50%;animation:loadSpin .8s linear infinite;margin-bottom:16px}
@@ -893,7 +895,7 @@ const PerfUtils = {
 
 // === DATA MANAGER ===
 const DataManager={
-data:{highScore:0,gems:50,skins:['classic'],trails:['classic'],currentSkin:'classic',currentTrail:'classic',currentBg:'classic',backgrounds:['classic'],noAds:false,stats:{totalPivots:0,totalScore:0,totalRuns:0,totalGemsCollected:0,bestGemsInRun:0,blitzRuns:0,weeklySubmitCount:0,weeklyTop10Count:0,totalPerfects:0,totalMaxMultiplier:0,weeklyPodiumCount:0},sessionRuns:0,missionsProgress:{},unlockedPacks:[],claimedMissions:[],lastDailyDate:0,claimedDailies:[],musicVol:10,sfxVol:75,dailyStats:{date:0,runs:0,score:0,gems:0,bestRun:0},lives:3,livesLastRegen:0,adsLivesToday:0,adsLivesDate:0,notificationsEnabled:true,campaignLevel:1,campaignStars:{},dailyCampaignDate:0,dailyCampaignDone:false,streak:0,streakLastDate:0,streakShownToday:false,_streakGemReward:0,_streakSkinUnlocked:false,installDate:0,starterOfferShown:false,starterOfferClaimed:false,timeAttackBest:0,storedPowerups:{shield:0,slowmo:0,magnet:0},adRouletteDate:'',adRouletteCount:0,playerName:'Joueur',nameIsLocked:false,weeklyScores:[],weeklyScoreWeek:0,lastWeekTopScores:[],v130TutoSeen:false,tutoHints:{cone:false,mult:false,pu:false}},
+data:{highScore:0,gems:50,skins:['classic'],trails:['classic'],currentSkin:'classic',currentTrail:'classic',currentBg:'classic',backgrounds:['classic'],noAds:false,stats:{totalPivots:0,totalScore:0,totalRuns:0,totalGemsCollected:0,bestGemsInRun:0,blitzRuns:0,weeklySubmitCount:0,weeklyTop10Count:0,totalPerfects:0,totalMaxMultiplier:0,weeklyPodiumCount:0},sessionRuns:0,missionsProgress:{},unlockedPacks:[],claimedMissions:[],lastDailyDate:0,claimedDailies:[],musicVol:10,sfxVol:75,dailyStats:{date:0,runs:0,score:0,gems:0,bestRun:0},lives:3,livesLastRegen:0,adsLivesToday:0,adsLivesDate:0,notificationsEnabled:true,campaignLevel:1,campaignStars:{},campaignFlawless:{},dailyCampaignDate:0,dailyCampaignDone:false,streak:0,streakLastDate:0,streakShownToday:false,_streakGemReward:0,_streakSkinUnlocked:false,installDate:0,starterOfferShown:false,starterOfferClaimed:false,timeAttackBest:0,storedPowerups:{shield:0,slowmo:0,magnet:0},adRouletteDate:'',adRouletteCount:0,playerName:'Joueur',nameIsLocked:false,weeklyScores:[],weeklyScoreWeek:0,lastWeekTopScores:[],v130TutoSeen:false,tutoHints:{cone:false,mult:false,pu:false}},
 load(){try{const s=localStorage.getItem('swingSnapData');if(s){const saved=JSON.parse(s);this.data={...this.data,...saved,stats:{...this.data.stats,...(saved.stats||{})},dailyStats:{...this.data.dailyStats,...(saved.dailyStats||{})},storedPowerups:{...this.data.storedPowerups,...(saved.storedPowerups||{})},tutoHints:{...this.data.tutoHints,...(saved.tutoHints||{})}};}this.checkDailyReset();this.updateUI();
 // Record install date on first ever load
 if(!this.data.installDate){this.data.installDate=Date.now();this.save();}
@@ -2128,7 +2130,7 @@ this._runStartTime=Date.now();
 updatePuInventoryHUD();
 this.mode=this.mode||'arcade';this.score=0;this.displayScore=0;this.gemsCollected=0;this.reviveAvailable=true;this.state='PLAYING';
 this.freeFrames=0;this.immuneFrames=0;this._wasComing=false;this._lastTierScore=-1;this.lastSnappedPivot=null;
-this.perfectChain=0;this.multiplier=1;
+this.perfectChain=0;this.multiplier=1;this.allPerfect=true;
 $('hudMultiplier').style.display='none';
 // Time Attack: 60s countdown
 this.timeLeft=(this.mode==='timeattack')?60000:0;
@@ -2300,21 +2302,24 @@ if(isPerfect){
   // Track total perfects for progression mission
   if(!DataManager.data.stats)DataManager.data.stats={};
   DataManager.data.stats.totalPerfects=(DataManager.data.stats.totalPerfects||0)+1;
-  // Multiplier hint — fire once when player is 1 away from ×2 (chain=2)
-  if(this.perfectChain===2&&!DataManager.data.tutoHints.mult){
-    DataManager.data.tutoHints.mult=true;DataManager.save();
-    setTimeout(()=>showGameHint('🔥 Encore un PERFECT → <b>×2</b> ! Enchaîne jusqu\'à <b>×4</b> !',3200),200);
+  // Multiplicateur désactivé en campagne/daily : on garde les perfects, mais pas de montée ×N
+  if(this.mode!=='campaign'&&this.mode!=='daily'){
+    // Multiplier hint — fire once when player is 1 away from ×2 (chain=2)
+    if(this.perfectChain===2&&!DataManager.data.tutoHints.mult){
+      DataManager.data.tutoHints.mult=true;DataManager.save();
+      setTimeout(()=>showGameHint('🔥 Encore un PERFECT → <b>×2</b> ! Enchaîne jusqu\'à <b>×4</b> !',3200),200);
+    }
+    if(this.perfectChain>=10)this.multiplier=4;
+    else if(this.perfectChain>=6)this.multiplier=3;
+    else if(this.perfectChain>=3)this.multiplier=2;
+    // Track first time reaching ×4 in this chain
+    if(this.perfectChain===10){DataManager.data.stats.totalMaxMultiplier=(DataManager.data.stats.totalMaxMultiplier||0)+1;}
   }
-  if(this.perfectChain>=10)this.multiplier=4;
-  else if(this.perfectChain>=6)this.multiplier=3;
-  else if(this.perfectChain>=3)this.multiplier=2;
-  // Track first time reaching ×4 in this chain
-  if(this.perfectChain===10){DataManager.data.stats.totalMaxMultiplier=(DataManager.data.stats.totalMaxMultiplier||0)+1;}
   SoundManager.playPerfect();
   Haptic.heavy();
   showPerfectFeedback(this.perfectChain,this.multiplier);
 }else{
-  this.perfectChain=0;this.multiplier=1;
+  this.perfectChain=0;this.multiplier=1;this.allPerfect=false;
   SoundManager.playSnap();
   Haptic.light();
 }
@@ -2365,6 +2370,8 @@ if(this.mode==='timeattack'){
   if(isNewTABest)DataManager.data.timeAttackBest=this.displayScore;
   if(!DataManager.data.stats)DataManager.data.stats={};
   DataManager.data.stats.blitzRuns=(DataManager.data.stats.blitzRuns||0)+1;
+  // Interstitiel Blitz toutes les 3 parties
+  if(!DataManager.data.noAds){const _br=DataManager.data.stats.blitzRuns||0;if(_br>0&&_br%3===0){if(this._interstitialTimer)clearTimeout(this._interstitialTimer);this._interstitialTimer=setTimeout(()=>{this._interstitialTimer=null;AdMobAds.showInterstitial();},1500);}}
   DataManager.save();showTimeAttackResult(this.displayScore,this.gemsCollected,isNewTABest);return;
 }
 $('finalScore').textContent=this.displayScore;$('finalGems').textContent=this.gemsCollected;
@@ -2379,8 +2386,8 @@ WeeklyLeaderboard.submitAllTime(Math.max(this.displayScore,DataManager.data.high
 $('gameOverScreen').classList.add('active');
 try{checkChallengeResult(this.displayScore);}catch(e){}
 DataManager.save();setTimeout(()=>{Achievements.check();updateMissionDot();},300);
-// Interstitiel toutes les 5 parties — timer stocké pour pouvoir l'annuler si le joueur revive
-if(!DataManager.data.noAds){const _runs=DataManager.data.stats.totalRuns||0;if(_runs>0&&_runs%5===0){if(this._interstitialTimer)clearTimeout(this._interstitialTimer);this._interstitialTimer=setTimeout(()=>{this._interstitialTimer=null;AdMobAds.showInterstitial();},1500);}}
+// Interstitiel toutes les 3 parties — timer stocké pour pouvoir l'annuler si le joueur revive
+if(!DataManager.data.noAds){const _runs=DataManager.data.stats.totalRuns||0;if(_runs>0&&_runs%3===0){if(this._interstitialTimer)clearTimeout(this._interstitialTimer);this._interstitialTimer=setTimeout(()=>{this._interstitialTimer=null;AdMobAds.showInterstitial();},1500);}}
 },
 async revive(){
   // Annuler l'interstitiel programmé — jamais deux pubs en même temps
@@ -2441,8 +2448,8 @@ if(!this.player.rope){this.checkSnap();
     }else{this.gameOver();}
   }
 }
-// Update active power-up timers
-for(const k in this.activePowerups){if(this.activePowerups[k]>0){this.activePowerups[k]-=dt;if(this.activePowerups[k]<=0){this.activePowerups[k]=0;}}}
+// Update active power-up timers (ne pas décrémenter le power-up "infini" 999999 → sinon il passe sous le seuil ∞ et affiche un nombre de secondes erroné)
+for(const k in this.activePowerups){if(this.activePowerups[k]>0&&this.activePowerups[k]<999000){this.activePowerups[k]-=dt;if(this.activePowerups[k]<=0){this.activePowerups[k]=0;}}}
 updatePowerupHUD(this.activePowerups);
 this.checkGemCollection();
 this.checkPowerupCollection();
@@ -2861,6 +2868,8 @@ const CampaignManager={
 getTarget(lvl){return 3+2*Math.floor((lvl-1)/10);},
 getLevel(){return DataManager.data.campaignLevel||1;},
 getStars(lvl){return(DataManager.data.campaignStars||{})[lvl]||0;},
+getFlawless(lvl){return!!(DataManager.data.campaignFlawless||{})[lvl];},
+setFlawless(lvl){if(!DataManager.data.campaignFlawless)DataManager.data.campaignFlawless={};DataManager.data.campaignFlawless[lvl]=true;DataManager.save();},
 setStars(lvl,stars){
 if(!DataManager.data.campaignStars)DataManager.data.campaignStars={};
 const prev=DataManager.data.campaignStars[lvl]||0;
@@ -2922,7 +2931,7 @@ const div=document.createElement('div');
 div.className='campaign-tile '+(isCurrent?'tile-current':isDone?'tile-done':'tile-locked');
 let starsHtml='';
 if(isLocked){starsHtml='<span style="font-size:.7rem">🔒</span>';}
-else{starsHtml=[1,2,3].map(i=>`<span style="font-size:.58rem;${i<=stars?'':'opacity:.2;filter:grayscale(1)'}">⭐</span>`).join('');}
+else{const _fl=CampaignManager.getFlawless(lvl)&&stars>=3;starsHtml=[1,2,3].map(i=>`<span style="font-size:.58rem;${i<=stars?(_fl?'filter:drop-shadow(0 0 3px #ff6a00)':''):'opacity:.2;filter:grayscale(1)'}">${_fl?'🔥':'⭐'}</span>`).join('');}
 div.innerHTML=`<div class="tile-num">${isCurrent?'▶':''}${lvl}</div><div class="tile-target-lbl" style="font-size:.32rem;color:var(--text-light);margin:1px 0">${isLocked?'':('obj:'+target)}</div><div class="tile-stars-row">${starsHtml}</div>`;
 if(!isLocked)div.onclick=()=>startCampaignLevel(lvl);
 grid.appendChild(div);
@@ -3015,12 +3024,14 @@ $('campaignProgressHud').style.display='none';
 $('btnQuitCampaign').style.display='none';
 const attempts=isDaily?0:(Game.campaignAttempts||0);
 const stars=isDaily?3:CampaignManager.calcStars(attempts);
-if(!isDaily){DataManager.data.campaignCurrentAttempts=0;DataManager.data.campaignCurrentLevel=null;CampaignManager.setStars(level,stars);}
+// Étoiles EN FEU : niveau réussi du 1er coup ET 100% parfait (aucun snap raté)
+const isFlawless=!isDaily&&attempts===0&&Game.allPerfect===true;
+if(!isDaily){DataManager.data.campaignCurrentAttempts=0;DataManager.data.campaignCurrentLevel=null;CampaignManager.setStars(level,stars);if(isFlawless)CampaignManager.setFlawless(level);}
 else CampaignManager.setDailyDone();
 const bonusGems=isDaily?15:0;
 if(bonusGems>0){DataManager.data.gems+=bonusGems;DataManager.save();}
-// Stars display
-$('levelCompleteStars').innerHTML=[1,2,3].map(i=>`<span class="star-big ${i<=stars?'lit':'dim'}">⭐</span>`).join('');
+// Stars display (🔥 si sans-faute parfait au 1er essai)
+$('levelCompleteStars').innerHTML=[1,2,3].map(i=>`<span class="star-big ${i<=stars?'lit':'dim'}${isFlawless?' fire':''}">${isFlawless?'🔥':'⭐'}</span>`).join('');
 // Result message
 const attMsg=attempts===0?I18N.t('camp_first_try'):I18N.t('camp_mistakes',attempts);
 const target=CampaignManager.getTarget(level);
