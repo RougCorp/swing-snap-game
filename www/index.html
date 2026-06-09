@@ -942,7 +942,9 @@ this.save();
 // Weekly leaderboard reset check
 if(typeof WeeklyLeaderboard!=='undefined')WeeklyLeaderboard.checkReset();
 },
-save(){try{localStorage.setItem('swingSnapData',JSON.stringify(this.data));this.updateUI();}catch(e){}},
+save(){if(this._saveT){clearTimeout(this._saveT);this._saveT=null;}try{localStorage.setItem('swingSnapData',JSON.stringify(this.data));this.updateUI();}catch(e){}},
+// Version throttlée pour les appels en boucle de jeu (collecte de gemmes) : évite un JSON.stringify + écriture + updateUI à chaque frame
+saveSoon(){if(this._saveT)return;this._saveT=setTimeout(()=>{this._saveT=null;this.save();},400);},
 updateUI(){$('uiGems').textContent=this.data.gems;$('menuHighScore').textContent=Math.floor(this.data.highScore);$('rangeMusic').value=this.data.musicVol;$('rangeSFX').value=this.data.sfxVol;$('valMusic').textContent=this.data.musicVol+'%';$('valSFX').textContent=this.data.sfxVol+'%';SoundManager.setMusicVolume(this.data.musicVol);SoundManager.setSFXVolume(this.data.sfxVol);if(this.data.musicTheme)SoundManager.setTheme(this.data.musicTheme);const tn=$('toggleNotif');if(tn)tn.checked=this.data.notificationsEnabled!==false;const badge=$('streakBadge');const sc=$('streakCount');if(badge&&sc&&(this.data.streak||0)>0){sc.textContent=this.data.streak;badge.style.display='flex';}},
 deleteAccount(){if(confirm(I18N.t('confirm_delete'))){localStorage.removeItem('swingSnapData');location.reload();}}
 };
@@ -2089,8 +2091,8 @@ this.resize();window.addEventListener('resize',()=>this.resize());
 this.setupEvents();
 try{SoundManager.init();}catch(e){}
 // Pause audio quand l'app passe en background
-document.addEventListener('visibilitychange',()=>{if(document.hidden){SoundManager.pause();}else if(Game.state==='PLAYING'){SoundManager.resume();}});
-try{if(typeof Capacitor!=='undefined'&&Capacitor.Plugins&&Capacitor.Plugins.App){Capacitor.Plugins.App.addListener('appStateChange',(s)=>{if(!s.isActive){SoundManager.pause();try{NotificationManager.scheduleInactivity();}catch(e){}}else{if(Game.state==='PLAYING')SoundManager.resume();try{NotificationManager.cancelAll();NotificationManager.scheduleDailyMissions();}catch(e){}}});}}catch(e){}
+document.addEventListener('visibilitychange',()=>{if(document.hidden){DataManager.save();SoundManager.pause();}else if(Game.state==='PLAYING'){SoundManager.resume();}});
+try{if(typeof Capacitor!=='undefined'&&Capacitor.Plugins&&Capacitor.Plugins.App){Capacitor.Plugins.App.addListener('appStateChange',(s)=>{if(!s.isActive){DataManager.save();SoundManager.pause();try{NotificationManager.scheduleInactivity();}catch(e){}}else{if(Game.state==='PLAYING')SoundManager.resume();try{NotificationManager.cancelAll();NotificationManager.scheduleDailyMissions();}catch(e){}}});}}catch(e){}
 // Initialiser AdMob si disponible
 try{AdMobAds.init();}catch(e){console.log('AdMob not available');}
 DataManager.load();
@@ -2241,7 +2243,7 @@ for(let i=this.floatingGems.length-1;i>=0;i--){let g=this.floatingGems[i];
 if(!g.collected){
   if(this.activePowerups.magnet>0&&this.player.pos.dist(g.pos)<magnetR){
     const dir=this.player.pos.sub(g.pos).normalize();const spd=10;g.bx+=dir.x*spd;g.by+=dir.y*spd;g.pos.x+=dir.x*spd;g.pos.y+=dir.y*spd;}
-  if(this.player.pos.dist(g.pos)<CONFIG.gemCollectRadius){g.collected=true;this.gemsCollected++;DataManager.data.gems++;if(this.mode==='arcade'||this.mode==='daily'||this.mode==='campaign'){this.dailyGems++;DataManager.data.dailyStats.gems++;}DataManager.save();SoundManager.playGem();showToast('+1 <span class="gem-i"></span>');}
+  if(this.player.pos.dist(g.pos)<CONFIG.gemCollectRadius){g.collected=true;this.gemsCollected++;DataManager.data.gems++;if(this.mode==='arcade'||this.mode==='daily'||this.mode==='campaign'){this.dailyGems++;DataManager.data.dailyStats.gems++;}DataManager.saveSoon();SoundManager.playGem();showToast('+1 <span class="gem-i"></span>');}
 }}},
 checkPowerupCollection(){
 for(let i=this.powerups.length-1;i>=0;i--){
