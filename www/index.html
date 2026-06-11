@@ -359,19 +359,19 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
     <div style="font-size:1.2rem">🛡</div>
     <div style="font-size:.65rem;font-weight:900" data-i18n="shop_pu_shield">Bouclier</div>
     <div id="puStockShield" style="font-size:.6rem;color:var(--text-light)">x0</div>
-    <div style="font-size:.6rem;margin-top:2px">50 <span class="gem-i"></span></div>
+    <div style="font-size:.6rem;margin-top:2px">200 <span class="gem-i"></span></div>
   </button>
   <button onclick="buyStoredPowerup('slowmo')" style="flex:1;background:var(--bg);border:1.5px solid #9C27B0;border-radius:14px;padding:8px 4px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:900;color:#9C27B0">
     <div style="font-size:1.2rem">⏩</div>
     <div style="font-size:.65rem;font-weight:900" data-i18n="shop_pu_slowmo">Slow-Mo</div>
     <div id="puStockSlowmo" style="font-size:.6rem;color:var(--text-light)">x0</div>
-    <div style="font-size:.6rem;margin-top:2px">50 <span class="gem-i"></span></div>
+    <div style="font-size:.6rem;margin-top:2px">200 <span class="gem-i"></span></div>
   </button>
   <button onclick="buyStoredPowerup('magnet')" style="flex:1;background:var(--bg);border:1.5px solid #F4A926;border-radius:14px;padding:8px 4px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:900;color:#F4A926">
     <div style="font-size:1.2rem">🧲</div>
     <div style="font-size:.65rem;font-weight:900" data-i18n="shop_pu_magnet">Aimant</div>
     <div id="puStockMagnet" style="font-size:.6rem;color:var(--text-light)">x0</div>
-    <div style="font-size:.6rem;margin-top:2px">50 <span class="gem-i"></span></div>
+    <div style="font-size:.6rem;margin-top:2px">200 <span class="gem-i"></span></div>
   </button>
 </div>
 </div>
@@ -952,6 +952,9 @@ deleteAccount(){if(confirm(I18N.t('confirm_delete'))){localStorage.removeItem('s
 // === WEEKLY LEADERBOARD ===
 const WeeklyLeaderboard={
 _db:null,_uid:null,_ready:false,_initP:null,
+_cache:{}, // cache client des Top N (réduit les lectures Firestore lors des ouvertures répétées)
+_getCached(key,ttl){const c=this._cache[key];return(c&&Date.now()-c.ts<ttl)?c.data:null;},
+_setCached(key,data){this._cache[key]={data,ts:Date.now()};return data;},
 
 async _init(){
   if(this._ready)return;
@@ -1014,9 +1017,9 @@ async submit(score){
       effectiveScore=doc.data().score; // Garder le meilleur score déjà en DB
       if(doc.data().name!==name)await ref.update({name});
     }
-    // Compter uniquement les joueurs avec un score strictement supérieur (plus rapide que full scan)
-    const betterSnap=await this._db.collection('weeklyScores').doc(String(week)).collection('players').where('score','>',effectiveScore).get({source:'server'});
-    const rank=betterSnap.size+1;
+    // Agrégation count() : compte les joueurs au-dessus SANS lire chaque doc (1 lecture au lieu de N)
+    const betterSnap=await this._db.collection('weeklyScores').doc(String(week)).collection('players').where('score','>',effectiveScore).count().get();
+    const rank=betterSnap.data().count+1;
     if(rank<=10)d.stats.weeklyTop10Count=(d.stats.weeklyTop10Count||0)+1;
     if(rank<=3)d.stats.weeklyPodiumCount=(d.stats.weeklyPodiumCount||0)+1;
     DataManager.save();
@@ -1028,10 +1031,12 @@ async getTopN(n){
   n=n||10;
   await this._init();
   if(!this._ready)return[];
+  const ck='wTop'+n+'_'+this.getWeekKey();
+  const cached=this._getCached(ck,60000);if(cached)return cached;
   try{
     const week=this.getWeekKey();
     const snap=await this._db.collection('weeklyScores').doc(String(week)).collection('players').orderBy('score','desc').limit(n).get({source:'server'});
-    return snap.docs.map((d,i)=>({name:d.data().name,score:d.data().score,rank:i+1,isMe:d.id===this._uid}));
+    return this._setCached(ck,snap.docs.map((d,i)=>({name:d.data().name,score:d.data().score,rank:i+1,isMe:d.id===this._uid})));
   }catch(e){console.warn('GetTopN error:',e);return[];}
 },
 
@@ -1085,8 +1090,8 @@ async getMyRank(isBlitz,isWeekly){
     else if(!isBlitz&&!isWeekly) betterRef=this._db.collection('allTimeScores').where('score','>',myScore);
     else if(isBlitz&&isWeekly) betterRef=this._db.collection('blitzWeekly').doc(String(week)).collection('players').where('score','>',myScore);
     else betterRef=this._db.collection('blitzAllTime').where('score','>',myScore);
-    const better=await betterRef.get({source:'server'});
-    return{rank:better.size+1,score:myScore};
+    const better=await betterRef.count().get();
+    return{rank:better.data().count+1,score:myScore};
   }catch(e){console.warn('getMyRank:',e);return null;}
 },
 
@@ -1106,9 +1111,11 @@ async submitAllTime(score){
 },
 async getTopNAllTime(n){
   n=n||10;await this._init();if(!this._ready)return[];
+  const ck='atTop'+n;
+  const cached=this._getCached(ck,60000);if(cached)return cached;
   try{
     const snap=await this._db.collection('allTimeScores').orderBy('score','desc').limit(n).get({source:'server'});
-    return snap.docs.map((d,i)=>({name:d.data().name,score:d.data().score,rank:i+1,isMe:d.id===this._uid}));
+    return this._setCached(ck,snap.docs.map((d,i)=>({name:d.data().name,score:d.data().score,rank:i+1,isMe:d.id===this._uid})));
   }catch(e){console.warn('GetTopNAllTime error:',e);return[];}
 },
 
@@ -1129,16 +1136,18 @@ async submitBlitz(score){
       effectiveScore=doc.data().score;
       if(doc.data().name!==name)await ref.update({name});
     }
-    const betterSnap=await this._db.collection('blitzWeekly').doc(String(week)).collection('players').where('score','>',effectiveScore).get({source:'server'});
-    return betterSnap.size+1;
+    const betterSnap=await this._db.collection('blitzWeekly').doc(String(week)).collection('players').where('score','>',effectiveScore).count().get();
+    return betterSnap.data().count+1;
   }catch(e){console.warn('SubmitBlitz error:',e);return 999;}
 },
 async getTopNBlitz(n){
   n=n||10;await this._init();if(!this._ready)return[];
+  const ck='bTop'+n+'_'+this.getWeekKey();
+  const cached=this._getCached(ck,60000);if(cached)return cached;
   try{
     const week=this.getWeekKey();
     const snap=await this._db.collection('blitzWeekly').doc(String(week)).collection('players').orderBy('score','desc').limit(n).get({source:'server'});
-    return snap.docs.map((d,i)=>({name:d.data().name,score:d.data().score,rank:i+1,isMe:d.id===this._uid}));
+    return this._setCached(ck,snap.docs.map((d,i)=>({name:d.data().name,score:d.data().score,rank:i+1,isMe:d.id===this._uid})));
   }catch(e){console.warn('GetTopNBlitz error:',e);return[];}
 },
 async getLastWeekBlitzTop3(){
@@ -1171,9 +1180,11 @@ async submitBlitzAllTime(score){
 },
 async getTopNBlitzAllTime(n){
   n=n||10;await this._init();if(!this._ready)return[];
+  const ck='batTop'+n;
+  const cached=this._getCached(ck,60000);if(cached)return cached;
   try{
     const snap=await this._db.collection('blitzAllTime').orderBy('score','desc').limit(n).get({source:'server'});
-    return snap.docs.map((d,i)=>({name:d.data().name,score:d.data().score,rank:i+1,isMe:d.id===this._uid}));
+    return this._setCached(ck,snap.docs.map((d,i)=>({name:d.data().name,score:d.data().score,rank:i+1,isMe:d.id===this._uid})));
   }catch(e){console.warn('GetTopNBlitzAllTime error:',e);return[];}
 },
 };
@@ -3694,7 +3705,7 @@ if(sl)sl.textContent='x'+(sp.slowmo||0);
 if(mg)mg.textContent='x'+(sp.magnet||0);
 }
 function buyStoredPowerup(type){
-const cost=50;const d=DataManager.data;
+const cost=200;const d=DataManager.data;
 if(d.gems<cost){showToast(I18N.t('toast_not_enough'));return;}
 const names={shield:I18N.t('shop_pu_shield')||'Bouclier',slowmo:I18N.t('shop_pu_slowmo')||'Slow-Mo',magnet:I18N.t('shop_pu_magnet')||'Aimant'};
 if(confirm(I18N.t('confirm_buy',cost)+' — '+names[type]+'?')){
