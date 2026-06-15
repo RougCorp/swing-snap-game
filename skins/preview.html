@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nouveaux skins — preview</title>
+<style>
+  html,body{margin:0;background:#0d0b1a;color:#fff;font-family:-apple-system,sans-serif}
+  h1{text-align:center;font-size:15px;color:rgba(255,255,255,.55);letter-spacing:1px;margin:18px 0 6px}
+  #grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:14px;max-width:460px;margin:0 auto}
+  .cell{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:16px;
+    padding:14px 8px 10px;text-align:center}
+  .cell canvas{display:block;margin:0 auto 8px}
+  .nm{font-weight:900;font-size:13px}
+  .pr{font-size:11px;color:var(--gold,#F4A926);margin-top:2px}
+</style>
+</head>
+<body>
+<h1>NOUVELLES BALLES — aperçu</h1>
+<div id="grid"></div>
+<script src="new-skins.js"></script>
+<script>
+const SCALE = 3.2;           // grossit le rayon ~10 pour bien voir
+const ANGLE = 0.5;           // rotation figée (comme un instant du jeu)
+const grid = document.getElementById('grid');
+
+Object.entries(window.NEW_BALL_SKINS).forEach(([key, sk]) => {
+  const cell = document.createElement('div'); cell.className = 'cell';
+  const cv = document.createElement('canvas');
+  const dpr = window.devicePixelRatio || 1, size = 92;
+  cv.width = size * dpr; cv.height = size * dpr; cv.style.width = size + 'px'; cv.style.height = size + 'px';
+  const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
+  // halo de fond léger (comme la balle en jeu)
+  const bgGlow = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+  bgGlow.addColorStop(0, 'rgba(142,99,180,.10)'); bgGlow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = bgGlow; ctx.fillRect(0, 0, size, size);
+  // dessine le skin comme en jeu (translate + rotate + scale)
+  ctx.save();
+  ctx.translate(size/2, size/2); ctx.rotate(ANGLE); ctx.scale(SCALE, SCALE);
+  sk.draw(ctx);
+  ctx.restore();
+  cell.appendChild(cv);
+  const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = sk.name; cell.appendChild(nm);
+  const pr = document.createElement('div'); pr.className = 'pr'; pr.textContent = sk.price + ' gemmes'; cell.appendChild(pr);
+  grid.appendChild(cell);
+});
+</script>
+</body>
+</html>
