@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Duel Arena — démo fantôme</title>
+<style>
+  html,body{margin:0;height:100%;background:#0d0b1a;overflow:hidden;font-family:-apple-system,sans-serif}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{background:linear-gradient(160deg,#0d0b1a,#1a1035 55%,#0f1528);display:block}
+  #hud{position:fixed;top:14px;left:0;right:0;text-align:center;color:#fff;pointer-events:none}
+  #hud .row{display:inline-flex;gap:26px;background:rgba(0,0,0,.35);backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:9px 20px;font-weight:900}
+  .me{color:#FF8C00}.ghost{color:#64B5F6}
+  #tag{position:fixed;bottom:12px;left:0;right:0;text-align:center;color:rgba(255,255,255,.35);font-size:12px}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c"></canvas></div>
+<div id="hud"><div class="row">
+  <span class="me">● TOI <span id="meScore">0</span></span>
+  <span class="ghost">● FANTÔME <span id="ghScore">0</span></span>
+  <span>Graine <span id="seedTxt">—</span></span>
+</div></div>
+<div id="tag">Démo déterministe — même monde, même graine. Le fantôme est un run décalé dans le temps.</div>
+
+<script src="duel-engine.js"></script>
+<script>
+const E = window.DuelEngine;
+const canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
+
+// Choisit une graine au hasard à chaque chargement
+const seed = 1 + Math.floor(Math.random() * 100000);
+document.getElementById('seedTxt').textContent = seed;
+
+const level = E.generateDuelLevel(seed, 60);
+const run = E.autoPlay(seed, 60);          // "toi" : le run du bot
+const GHOST_DELAY = 70;                      // le fantôme = même run, 70 frames de retard
+
+// Taille canvas = fenêtre (avec dpr), viewport letterbox sur l'arène virtuelle
+let vp;
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  const w = window.innerWidth, h = window.innerHeight;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  vp = E.computeViewport(w, h);
+}
+window.addEventListener('resize', resize); resize();
+
+// Quel pivot est "actif" à une frame donnée (pour n'afficher que le tronçon courant)
+function pivotIndexAtFrame(traj, f) {
+  // approx : compte les snaps déjà faits via la position dans run.taps
+  let idx = 0;
+  for (let i = 0; i < run.taps.length; i++) if (run.taps[i] <= f) idx = i + 1;
+  return idx;
+}
+
+function S(p) { return E.toScreen(p.x, p.y, vp); }
+
+function drawPivot(p, active) {
+  const s = S(p), r = 90 * vp.scale; // snapRadius
+  // halo
+  ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, 7);
+  ctx.fillStyle = active ? 'rgba(142,99,180,.10)' : 'rgba(142,99,180,.04)'; ctx.fill();
+  // cône doré (zone perfect) sur le pivot actif
+  if (active && typeof p.coneAngle === 'number') {
+    const half = Math.asin(Math.min(0.98, 25 / 90));
+    ctx.beginPath(); ctx.moveTo(s.x, s.y);
+    ctx.arc(s.x, s.y, r, p.coneAngle - half, p.coneAngle + half);
+    ctx.closePath(); ctx.fillStyle = 'rgba(244,169,38,.30)'; ctx.fill();
+  }
+  // anneau + centre
+  ctx.beginPath(); ctx.arc(s.x, s.y, 7 * vp.scale, 0, 7);
+  ctx.fillStyle = active ? '#B08CD8' : 'rgba(142,99,180,.5)'; ctx.fill();
+}
+
+function drawBall(pt, color, alpha) {
+  if (!pt) return;
+  const s = S(pt);
+  ctx.globalAlpha = alpha;
+  const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, 18 * vp.scale);
+  g.addColorStop(0, color); g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(s.x, s.y, 18 * vp.scale, 0, 7); ctx.fill();
+  ctx.fillStyle = color; ctx.beginPath(); ctx.arc(s.x, s.y, 7 * vp.scale, 0, 7); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function renderAt(frame) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const tl = E.toScreen(0, 0, vp), br = E.toScreen(E.DUEL_VW, E.DUEL_VH, vp);
+  ctx.strokeStyle = 'rgba(255,255,255,.06)'; ctx.lineWidth = 1;
+  ctx.strokeRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
+
+  const meFrame = Math.min(frame, run.traj.length - 1);
+  const ghFrame = Math.min(Math.max(frame - GHOST_DELAY, 0), run.traj.length - 1);
+  const activeIdx = pivotIndexAtFrame(run.traj, meFrame);
+
+  for (let i = Math.max(0, activeIdx - 1); i <= Math.min(level.length - 1, activeIdx + 1); i++) {
+    drawPivot(level[i], i === activeIdx || i === activeIdx + 1);
+  }
+  drawBall(run.traj[ghFrame], '#64B5F6', .55);  // fantôme
+  drawBall(run.traj[meFrame], '#FF8C00', 1);     // toi
+  document.getElementById('meScore').textContent = pivotIndexAtFrame(run.traj, meFrame);
+  document.getElementById('ghScore').textContent = pivotIndexAtFrame(run.traj, ghFrame);
+}
+
+let frame = 0;
+function step() {
+  if (window.__paused) return;
+  renderAt(frame);
+  frame += 1.2;
+  if (frame > run.traj.length + GHOST_DELAY + 60) frame = 0;
+}
+function tick() { step(); requestAnimationFrame(tick); }
+setInterval(step, 33);              // fallback si rAF est throttlé en headless
+window.seek = (f) => { window.__paused = true; renderAt(f); };  // fige + rend la frame
+window.play = () => { window.__paused = false; };
+window.runInfo = () => ({ frames: run.traj.length, score: run.score, perfects: run.perfects, seed });
+tick();
+</script>
+</body>
+</html>
