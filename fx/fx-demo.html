@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FX — bursts de particules</title>
+<style>
+  html,body{margin:0;height:100%;background:#0d0b1a;overflow:hidden;font-family:-apple-system,sans-serif}
+  canvas{display:block;background:radial-gradient(120% 90% at 50% 40%,#1a1035,#0d0b1a 70%)}
+  #lbl{position:fixed;top:14px;left:0;right:0;text-align:center;color:rgba(255,255,255,.5);
+    font-weight:900;font-size:13px;letter-spacing:1px;pointer-events:none}
+  .a{color:#F4A926}.b{color:#64B5F6}.c{color:#fff}
+</style>
+</head>
+<body>
+<div id="lbl"><span class="a">PERFECT</span> &nbsp; <span class="b">GEM</span> &nbsp; <span class="c">STAR</span></div>
+<canvas id="c"></canvas>
+<script src="particles.js"></script>
+<script>
+const canvas = document.getElementById('c'), ctx = canvas.getContext('2d');
+let W, H, dpr;
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener('resize', resize); resize();
+
+// 3 points de burst (un par preset) répartis verticalement
+function points() { return [
+  { x: W * 0.5, y: H * 0.28, p: 'perfect' },
+  { x: W * 0.5, y: H * 0.52, p: 'gem' },
+  { x: W * 0.5, y: H * 0.76, p: 'star' }
+]; }
+
+// Rend une frame N depuis un burst frais (déterminisme non requis ici → reproductible visuellement)
+function renderAt(N) {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const fx = new FxLayer();
+  const pts = points();
+  pts.forEach(pt => fx.burst(pt.x, pt.y, pt.p));
+  for (let i = 0; i < N; i++) fx.update(1);
+  fx.draw(ctx);
+  // petit point d'origine pour repère
+  pts.forEach(pt => { ctx.fillStyle = 'rgba(255,255,255,.25)'; ctx.beginPath(); ctx.arc(pt.x, pt.y, 2, 0, 7); ctx.fill(); });
+}
+
+// Boucle vivante : ré-émet périodiquement (effet "qui pulse")
+let t = 0, fx = new FxLayer();
+function step() {
+  if (window.__paused) return;
+  if (t % 55 === 0) points().forEach(pt => fx.burst(pt.x, pt.y, pt.p));
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  fx.update(1); fx.draw(ctx);
+  t++;
+}
+function tick() { step(); requestAnimationFrame(tick); }
+setInterval(step, 33);
+window.seek = (N) => { window.__paused = true; renderAt(N); };   // fige + capture une frame N
+window.play = () => { window.__paused = false; };
+tick();
+</script>
+</body>
+</html>
