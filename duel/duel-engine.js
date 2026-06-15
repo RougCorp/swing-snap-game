@@ -131,7 +131,34 @@ function pickObstacle(rng, pivots, i, C) {
   return null;
 }
 
+// ── Viewport : mappe le terrain virtuel VW×VH vers l'écran réel ───────────
+// "fit-inside" centré (letterbox) → l'arène entière est visible, même aspect
+// ratio sur tous les téléphones (la clé pour que le fantôme reste aligné).
+function computeViewport(screenW, screenH) {
+  const scale = Math.min(screenW / DUEL_VW, screenH / DUEL_VH);
+  const drawW = DUEL_VW * scale, drawH = DUEL_VH * scale;
+  return {
+    scale,
+    offsetX: (screenW - drawW) / 2,
+    offsetY: (screenH - drawH) / 2,
+    drawW, drawH
+  };
+}
+
+// Coordonnée virtuelle → coordonnée écran (pour dessiner monde + fantôme)
+function toScreen(vx, vy, vp) {
+  return { x: vp.offsetX + vx * vp.scale, y: vp.offsetY + vy * vp.scale };
+}
+
+// Coordonnée écran → virtuelle (pour les taps du joueur)
+function toVirtual(sx, sy, vp) {
+  return { x: (sx - vp.offsetX) / vp.scale, y: (sy - vp.offsetY) / vp.scale };
+}
+
 // Export (node pour les tests ; window pour le jeu plus tard)
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { makeRng, generateDuelLevel, DUEL_VW, DUEL_VH, DUEL_CFG };
+  module.exports = { makeRng, generateDuelLevel, computeViewport, toScreen, toVirtual, DUEL_VW, DUEL_VH, DUEL_CFG };
+}
+if (typeof window !== 'undefined') {
+  window.DuelEngine = { makeRng, generateDuelLevel, computeViewport, toScreen, toVirtual, DUEL_VW, DUEL_VH, DUEL_CFG };
 }
