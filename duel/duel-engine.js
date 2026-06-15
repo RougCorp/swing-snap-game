@@ -65,16 +65,23 @@ function generateDuelLevel(seed, pivotCount) {
         x = last.x + Math.cos(a) * d;
         y = last.y + Math.sin(a) * d;
         if (x > C.margin && x < DUEL_VW - C.margin && y > C.margin && y < DUEL_VH - C.margin) {
+          // Le jeu réel ne garde que 2 pivots à la fois → ne vérifier que les 2 derniers
+          // (sinon impossible de caser un long niveau sans chevauchement → placements dégénérés)
           let ok = true;
-          for (const p of pivots) {
+          for (const p of pivots.slice(-2)) {
             if (Math.hypot(x - p.x, y - p.y) < C.minPivotDist) { ok = false; break; }
           }
           if (ok) valid = true;
         }
       }
       if (!valid) {
-        x = rng() * (DUEL_VW - 2 * C.margin) + C.margin;
-        y = rng() * (DUEL_VH - 2 * C.margin) + C.margin;
+        // Secours : viser vers le centre de l'arène (évite de se coincer dans un coin
+        // et les placements dégénérés). Distance raisonnable, clampée dans les bords.
+        const last = pivots[i - 1];
+        const ang = Math.atan2(DUEL_VH / 2 - last.y, DUEL_VW / 2 - last.x) + (rng() - 0.5) * 1.2;
+        const d = C.minPivotDist * 1.15;
+        x = Math.max(C.margin, Math.min(DUEL_VW - C.margin, last.x + Math.cos(ang) * d));
+        y = Math.max(C.margin, Math.min(DUEL_VH - C.margin, last.y + Math.sin(ang) * d));
       }
     }
 
@@ -155,10 +162,107 @@ function toVirtual(sx, sy, vp) {
   return { x: (sx - vp.offsetX) / vp.scale, y: (sy - vp.offsetY) / vp.scale };
 }
 
+// ── Simulation physique déterministe (portée fidèlement du jeu réel) ──────
+// Orbite autour du pivot, release (+25% de vitesse), vol libre, snap dans
+// le rayon, perfect dans le cône. Mêmes constantes que le jeu.
+const SIM = {
+  ropeLength: 70, snapRadius: 90, perfectRadius: 25, releaseBoost: 1.25,
+  // [score, vitesse angulaire] — repris de CONFIG.speedTiers
+  speedTiers: [[0, .032], [10, .040], [20, .048], [30, .057], [40, .067], [50, .078], [60, .090], [70, .1]]
+};
+function speedFor(score) {
+  let sp = SIM.speedTiers[0][1];
+  for (let i = SIM.speedTiers.length - 1; i >= 0; i--) { if (score >= SIM.speedTiers[i][0]) { sp = SIM.speedTiers[i][1]; break; } }
+  return sp;
+}
+function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; }
+
+/**
+ * Simule un run de façon 100% déterministe.
+ * @param level  niveau généré par generateDuelLevel
+ * @param opts   { taps:[frames] }  rejoue des taps précis (fantôme)
+ *               { auto:true }       pilote automatique (bot / test)
+ * Renvoie { traj:[{x,y,f}], taps:[frames], score, perfects, frames, finished }
+ */
+function simulateRun(level, opts) {
+  opts = opts || {};
+  const dt = 1, maxFrames = opts.maxFrames || 8000;
+  const AUTO_AIM = 0.12, MIN_HOLD = 6; // seuil de visée + frames mini accrochées
+  const tapSet = opts.taps ? new Set(opts.taps) : null;
+  const recorded = [];
+
+  let pivot = level[0], targetIdx = 1, attached = true;
+  let angle = 0, holdFrames = 0, freeFrames = 0;
+  let pos = { x: pivot.x + SIM.ropeLength, y: pivot.y }, vel = { x: 0, y: 0 };
+  let score = 0, perfects = 0, ended = false, frame = 0, lastPerp = Infinity;
+  const traj = [];
+
+  for (frame = 0; frame < maxFrames && !ended; frame++) {
+    const tp = level[targetIdx];
+    // ── Décision de release ───────────────────────────────────────────────
+    let release = false;
+    if (attached) {
+      holdFrames++;
+      if (tapSet) {
+        release = tapSet.has(frame);
+      } else if (opts.auto && tp && holdFrames >= MIN_HOLD) {
+        // Pilote auto : libère au MINIMUM de la distance perpendiculaire du rayon de
+        // vitesse à la cible (release ne change que la norme, pas la direction → rayon valide)
+        const vmag = Math.hypot(vel.x, vel.y) || 1;
+        const ux = vel.x / vmag, uy = vel.y / vmag;
+        const tx = tp.x - pos.x, ty = tp.y - pos.y;
+        const proj = tx * ux + ty * uy;
+        if (proj > 0) {
+          const perp = Math.abs(tx * uy - ty * ux);
+          if (perp < SIM.snapRadius * 0.9) {
+            if (perp > lastPerp) release = true; // on vient de passer le minimum
+            lastPerp = perp;
+          } else lastPerp = Infinity;
+        } else lastPerp = Infinity;
+      }
+    }
+    if (release) {
+      attached = false; holdFrames = 0; freeFrames = 0;
+      vel = { x: vel.x * SIM.releaseBoost, y: vel.y * SIM.releaseBoost };
+      recorded.push(frame);
+    }
+    // ── Mise à jour physique ──────────────────────────────────────────────
+    const spd = speedFor(score);
+    if (attached) {
+      angle += spd * dt;
+      pos.x = pivot.x + Math.cos(angle) * SIM.ropeLength;
+      pos.y = pivot.y + Math.sin(angle) * SIM.ropeLength;
+      const s = spd * SIM.ropeLength;
+      vel.x = -Math.sin(angle) * s; vel.y = Math.cos(angle) * s;
+    } else {
+      pos.x += vel.x * dt; pos.y += vel.y * dt; freeFrames++;
+      if (tp) {
+        const d = Math.hypot(pos.x - tp.x, pos.y - tp.y);
+        if (d < SIM.snapRadius) {
+          attached = true; pivot = tp;
+          angle = Math.atan2(pos.y - tp.y, pos.x - tp.x);
+          score++;
+          const half = Math.asin(Math.min(0.98, SIM.perfectRadius / SIM.snapRadius));
+          if (Math.abs(angDiff(angle, tp.coneAngle)) < half) perfects++;
+          targetIdx++; freeFrames = 0; holdFrames = 0; lastPerp = Infinity;
+          if (targetIdx >= level.length) ended = true;
+        } else if (freeFrames > 600 || d > SIM.snapRadius * 8) {
+          ended = true; // raté
+        }
+      } else ended = true;
+    }
+    traj.push({ x: pos.x, y: pos.y, f: frame });
+  }
+  return { traj, taps: recorded, score, perfects, frames: frame, finished: targetIdx >= level.length };
+}
+
+// Bot déterministe : joue tout seul un niveau (sert de test ET de fantôme "bot")
+function autoPlay(seed, pivotCount) {
+  const level = generateDuelLevel(seed, pivotCount || 60);
+  return simulateRun(level, { auto: true });
+}
+
 // Export (node pour les tests ; window pour le jeu plus tard)
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { makeRng, generateDuelLevel, computeViewport, toScreen, toVirtual, DUEL_VW, DUEL_VH, DUEL_CFG };
-}
-if (typeof window !== 'undefined') {
-  window.DuelEngine = { makeRng, generateDuelLevel, computeViewport, toScreen, toVirtual, DUEL_VW, DUEL_VH, DUEL_CFG };
-}
+const _api = { makeRng, generateDuelLevel, computeViewport, toScreen, toVirtual, simulateRun, autoPlay, speedFor, SIM, DUEL_VW, DUEL_VH, DUEL_CFG };
+if (typeof module !== 'undefined' && module.exports) module.exports = _api;
+if (typeof window !== 'undefined') window.DuelEngine = _api;
