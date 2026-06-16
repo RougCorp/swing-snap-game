@@ -452,6 +452,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 </div>
 <script src="cordova.js"></script>
 <script src="iap.js"></script>
+<script src="confetti.browser.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -558,6 +559,19 @@ L.fi.name_section='👤 Pelaajan nimi';L.fi.name_locked_msg='Nimesi on lopulline
 })(I18N.L);
 
 const showToast=msg=>{const t=document.createElement('div');t.className='toast';t.innerHTML=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2000);};
+// Confettis (canvas-confetti, ISC) sur les moments forts
+function celebrate(kind){
+  if(typeof confetti!=='function')return;
+  const C=['#8E63B4','#F4A926','#FF8C00','#7CB342','#ffffff'];
+  if(kind==='record'){
+    confetti({particleCount:120,spread:85,startVelocity:45,origin:{y:.62},colors:C});
+    setTimeout(()=>{confetti({particleCount:55,angle:60,spread:55,origin:{x:0,y:.65},colors:C});confetti({particleCount:55,angle:120,spread:55,origin:{x:1,y:.65},colors:C});},160);
+  }else if(kind==='level'){
+    confetti({particleCount:80,spread:70,startVelocity:40,origin:{y:.6},colors:C});
+  }else if(kind==='fire'){
+    confetti({particleCount:150,spread:110,startVelocity:52,origin:{y:.52},scalar:1.1,colors:['#FF6D00','#FFD600','#FF3D00','#F4A926','#ffffff']});
+  }
+}
 const showMissionBanner=(name,reward)=>{const t=document.createElement('div');t.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#8E63B4,#6A4C93);color:#fff;padding:10px 20px;border-radius:20px;font-size:.8rem;font-weight:900;z-index:9999;box-shadow:0 4px 20px rgba(142,99,180,0.5);text-align:center;max-width:280px;animation:slideDown .4s ease';t.innerHTML=`🎯 <b>${name}</b><br><span style="font-size:.75rem;opacity:.9">${reward}</span>`;document.body.appendChild(t);setTimeout(()=>{t.style.animation='slideUp .3s ease reverse';setTimeout(()=>t.remove(),300);},3000);};
 const todaySeed=()=>{const d=new Date();return d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();};
 const Haptic={light:()=>{},medium:()=>{},heavy:()=>{},success:()=>{}};
@@ -2394,6 +2408,7 @@ if(this.mode==='timeattack'){
 }
 $('finalScore').textContent=this.displayScore;$('finalGems').textContent=this.gemsCollected;
 $('newBestBadge').className=isNewBest?'new-best show':'new-best';
+if(isNewBest)celebrate('record');
 $('btnRevive').style.display=this.reviveAvailable?'block':'none';
 $('btnDoubleGems').style.display=this.gemsCollected>0?'block':'none';
 // Classique semaine + classique général
@@ -3052,6 +3067,7 @@ const bonusGems=isDaily?15:0;
 if(bonusGems>0){DataManager.data.gems+=bonusGems;DataManager.save();}
 // Stars display (🔥 si sans-faute parfait au 1er essai)
 $('levelCompleteStars').innerHTML=[1,2,3].map(i=>`<span class="star-big ${i<=stars?'lit':'dim'}${isFlawless?' fire':''}">${isFlawless?'🔥':'⭐'}</span>`).join('');
+setTimeout(()=>celebrate(isFlawless?'fire':'level'),250);
 // Result message
 const attMsg=attempts===0?I18N.t('camp_first_try'):I18N.t('camp_mistakes',attempts);
 const target=CampaignManager.getTarget(level);
