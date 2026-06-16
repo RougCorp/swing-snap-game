@@ -1,6 +1,7 @@
 import UIKit
 import Capacitor
 import AppTrackingTransparency
+import AVFoundation
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -9,6 +10,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
+
+        // Audio session: "ambient" + mixWithOthers so game music/SFX layer OVER
+        // other apps (Spotify, podcasts...) instead of interrupting them, and
+        // respect the hardware silent switch. Fixes: a "perfect" SFX or a volume
+        // change killing the user's Spotify playback.
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.ambient, options: [.mixWithOthers])
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("AVAudioSession setup failed: \(error)")
+        }
+
         if #available(iOS 14, *) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 ATTrackingManager.requestTrackingAuthorization { _ in }
