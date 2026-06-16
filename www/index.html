@@ -46,7 +46,7 @@
 --sat: 0px;
 }
 *{box-sizing:border-box;user-select:none;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;overflow:hidden;height:100vh;width:100vw;display:flex;align-items:center;justify-content:center;touch-action:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+body{background:radial-gradient(130% 100% at 50% 0%,#FBF7F0,#EFE6D8);color:var(--text);font-family:'Nunito',sans-serif;overflow:hidden;height:100vh;width:100vw;display:flex;align-items:center;justify-content:center;touch-action:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 #gameCanvas{display:block;position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:1}
 .toggle-row{display:flex;align-items:center;justify-content:space-between;width:100%;padding:6px 0;font-size:.9rem;font-weight:700;color:var(--text)}
 .toggle-switch{position:relative;display:inline-block;width:46px;height:26px;flex-shrink:0}
@@ -73,9 +73,11 @@ input:checked+.toggle-slider:before{transform:translateX(20px)}
 .screen h1{font-size:2.5rem;font-weight:900;letter-spacing:-1px;color:var(--text);line-height:1;margin-bottom:5px}
 .screen h1 span{color:var(--accent)}
 .screen h2{font-size:1.3rem;font-weight:900;color:var(--text)}
-.btn{border:none;padding:15px 20px;font-weight:900;font-size:1rem;border-radius:16px;cursor:pointer;width:100%;font-family:'Nunito',sans-serif;letter-spacing:0.5px;transition:transform .1s}
+.btn{border:none;padding:15px 20px;font-weight:900;font-size:1rem;border-radius:16px;cursor:pointer;width:100%;font-family:'Nunito',sans-serif;letter-spacing:0.5px;transition:transform .12s ease,box-shadow .12s ease,filter .12s ease}
+.btn:active{transform:scale(.955)}
+.btn:active{filter:brightness(.96)}
 .btn:active{transform:scale(.96)}
-.btn-primary{background:var(--accent);color:#fff;box-shadow:0 6px 20px rgba(142, 99, 180, 0.4)}
+.btn-primary{background:linear-gradient(135deg,#A07BC8,#7A4FA0);color:#fff;box-shadow:0 8px 22px rgba(142,99,180,.45),inset 0 1px 0 rgba(255,255,255,.28)}
 .btn-secondary{background:rgba(93, 64, 55, 0.05);color:var(--text);border:1px solid rgba(0,0,0,0.05)}
 .btn-outline{background:transparent;border:2px solid var(--accent2);color:var(--accent2)}
 .btn-danger{background:var(--danger);color:#fff;box-shadow:0 6px 20px rgba(239, 83, 80, 0.3)}
@@ -119,7 +121,7 @@ input:checked+.toggle-slider:before{transform:translateX(20px)}
 @keyframes loadSpin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
 @keyframes achievePop{0%{transform:translateY(20px);opacity:0}20%{transform:translateY(0);opacity:1}80%{transform:translateY(0);opacity:1}100%{transform:translateY(-20px);opacity:0}}
 @keyframes lifeAnim{0%{transform:translate(-50%,-50%) scale(1);opacity:1}70%{transform:translate(-50%,-180%) scale(1.3);opacity:.8}100%{transform:translate(-50%,-220%) scale(.7);opacity:0}}
-.screen{background:var(--card);padding:30px 24px;border-radius:30px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.06);display:none;flex-direction:column;gap:14px;width:90%;max-width:400px;max-height:88vh;overflow-y:auto;border:1px solid rgba(0,0,0,0.03);opacity:0;transform:translateY(30px);transition:opacity .3s ease,transform .3s ease}
+.screen{background:linear-gradient(180deg,#FFFFFF,#FFF8EE);padding:30px 24px;border-radius:30px;text-align:center;box-shadow:0 24px 70px rgba(74,55,40,.16),inset 0 1px 0 rgba(255,255,255,.75);display:none;flex-direction:column;gap:14px;width:90%;max-width:400px;max-height:88vh;overflow-y:auto;border:1px solid rgba(142,99,180,.10);opacity:0;transform:translateY(30px);transition:opacity .3s ease,transform .3s ease}
 .screen.active{display:flex;opacity:1;transform:translateY(0);animation:slideUp .4s cubic-bezier(.16,1,.3,1)}
 .back-btn{background:rgba(93,64,55,0.07);border:none;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.2rem;cursor:pointer;color:var(--text-light);flex-shrink:0;transition:background .15s;font-family:'Nunito',sans-serif;font-weight:900;line-height:1}
 .back-btn:active{background:rgba(93,64,55,0.14);transform:scale(.92)}
