@@ -330,6 +330,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 </div>
 <div id="shopScreen" class="screen ui-element">
 <div class="screen-header"><button class="back-btn" id="btnCloseShop">&#8592;</button><h2 data-i18n="shop">Collection</h2><div style="margin-left:auto;display:flex;gap:8px;align-items:center;font-weight:900;font-size:.85rem"><span style="display:inline-flex;align-items:center;gap:4px"><span class="gem-i"></span><span id="uiGemsShop">0</span></span><span style="display:inline-flex;align-items:center;gap:4px"><span class="gem-b"></span><span id="uiGemsBlue">0</span></span></div></div>
+<div id="profileCard" style="margin-bottom:10px"></div>
 <div class="tabs"><button class="tab active" id="tabBalls" onclick="switchTab('balls')" data-i18n="balls">BALLES</button><button class="tab" id="tabTrails" onclick="switchTab('trails')" data-i18n="trails">TRAINEES</button><button class="tab" id="tabBgs" onclick="switchTab('bgs')" data-i18n="backgrounds">FONDS</button><button class="tab" id="tabEmblems" onclick="switchTab('emblems')" data-i18n="emblems">EMBLÈMES</button><button class="tab" id="tabBanners" onclick="switchTab('banners')" data-i18n="banners">BANNIÈRES</button></div>
 <div class="skin-grid" id="skinGrid"></div>
 
@@ -2570,8 +2571,33 @@ emblems:{skins:()=>EMBLEMS,owned:'emblems',cur:'currentEmblem',kind:'ball',nameF
 banners:{skins:()=>BANNERS,owned:'banners',cur:'currentBanner',kind:'bg',nameFromDef:true,blue:true},
 };
 function shopItemPrice(it){return it.blue||it.priceBlue!=null?(it.priceBlue||0):(it.price||0);}
+// Carte de profil : bannière (fond) + emblème + pseudo. Aperçu live de
+// l'identité du joueur, mise à jour à chaque sélection.
+function renderProfileCard(){
+const host=$('profileCard');if(!host)return;
+const d=DataManager.data;
+const emb=(EMBLEMS||{})[d.currentEmblem]||EMBLEMS.classic;
+const ban=(BANNERS||{})[d.currentBanner]||BANNERS.classic;
+host.innerHTML='';
+const card=document.createElement('div');
+card.style.cssText='position:relative;height:74px;border-radius:16px;overflow:hidden;box-shadow:0 4px 14px rgba(0,0,0,.12);display:flex;align-items:center;padding:0 14px;gap:12px';
+const bcv=document.createElement('canvas');bcv.width=320;bcv.height=74;
+bcv.style.cssText='position:absolute;inset:0;width:100%;height:100%;z-index:0';
+if(ban){const cc=bcv.getContext('2d');cc.save();ban.draw(cc,320,74);cc.restore();}
+card.appendChild(bcv);
+const ecv=document.createElement('canvas');ecv.width=52;ecv.height=52;
+ecv.style.cssText='position:relative;z-index:1;width:48px;height:48px;background:rgba(255,255,255,.9);border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,.25);flex-shrink:0';
+if(emb){const cc=ecv.getContext('2d');cc.save();cc.translate(26,26);cc.fillStyle=emb.color;emb.draw(cc);cc.restore();}
+card.appendChild(ecv);
+const nm=document.createElement('div');
+nm.style.cssText='position:relative;z-index:1;font-weight:900;color:#fff;font-size:.95rem;background:rgba(0,0,0,.28);padding:4px 12px;border-radius:10px;backdrop-filter:blur(2px);max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+nm.textContent=d.playerName||I18N.t('name_placeholder')||'Joueur';
+card.appendChild(nm);
+host.appendChild(card);
+}
 function renderShop(){
 const grid=$('skinGrid');grid.innerHTML='';
+renderProfileCard();
 {const sg=$('uiGemsShop');if(sg)sg.textContent=DataManager.data.gems;const bg=$('uiGemsBlue');if(bg)bg.textContent=DataManager.data.gemsBlue||0;}
 const cfg=SHOP_TABS[Game.currentTab]||SHOP_TABS.balls;
 const skins=cfg.skins();
