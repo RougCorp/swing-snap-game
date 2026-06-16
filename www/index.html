@@ -3386,21 +3386,91 @@ const packDesc=pack.type==='gems'?pack.amount+' '+I18N.t('stat_gems_t'):(pack.id
 const ownedBadge=isOwned?`<button class="pack-price-btn" disabled style="background:var(--success,#4caf50);color:#fff;font-size:.75rem">✓</button>`:`<button class="pack-price-btn">${btn}</button>`;
 if(isOwned)div.style.opacity=.5;
 div.innerHTML=`<div style="font-size:1.4rem">${icon}</div><div style="text-align:left;flex:1"><div style="font-weight:900;font-size:.88rem;">${packName}</div><div style="font-size:.68rem;color:var(--text-light);">${packDesc}</div></div>${ownedBadge}`;
-if(!isOwned)div.onclick=async()=>{
-const priceBtn=div.querySelector('.pack-price-btn');
-if(typeof IAP!=='undefined'&&IAP.isNative&&IAP.isNative()){
-priceBtn.disabled=true;priceBtn.textContent='…';
-try{await IAP.buy(pack.id);}
-catch(e){console.log('buy error',e);showToast(I18N.t('purchase_failed'));priceBtn.disabled=false;priceBtn.textContent=btn;}
-}else{
-// Browser fallback: keep old confirm() flow for dev/testing only.
-if(confirm(I18N.t('confirm_buy_pack',packName,pack.price))){
-deliverEntitlement(pack.id);
-}
-}
+if(!isOwned)div.onclick=()=>{
+// Cosmetic packs (with content) → show a preview of what's inside first.
+// Gems / no-ads packs are self-explanatory → buy directly.
+if(pack.content&&pack.content.length){showPackPreview(pack,btn);}
+else{doPurchasePack(pack,btn,div.querySelector('.pack-price-btn'));}
 };
 c.appendChild(div);
 });
+}
+
+// Actual purchase flow (native store or browser fallback), shared by the
+// pack card and the preview modal's "buy" button.
+async function doPurchasePack(pack,btnLabel,priceBtnEl){
+const packName=pack.nameKey?I18N.t(pack.nameKey):pack.name;
+if(typeof IAP!=='undefined'&&IAP.isNative&&IAP.isNative()){
+if(priceBtnEl){priceBtnEl.disabled=true;priceBtnEl.textContent='…';}
+try{await IAP.buy(pack.id);}
+catch(e){console.log('buy error',e);showToast(I18N.t('purchase_failed'));if(priceBtnEl){priceBtnEl.disabled=false;priceBtnEl.textContent=btnLabel;}}
+}else{
+// Browser fallback: keep old confirm() flow for dev/testing only.
+if(confirm(I18N.t('confirm_buy_pack',packName,pack.price))){deliverEntitlement(pack.id);}
+}
+}
+
+// Renders one cosmetic item (ball / trail / background) preview tile,
+// reusing the exact drawing the Collection screen uses.
+function buildCosmeticPreview(it){
+const wrap=document.createElement('div');
+wrap.style.cssText='display:flex;flex-direction:column;align-items:center;gap:5px';
+let nameKey,cv;
+if(it.type==='bg'){
+const skin=(Game.player.bgSkins||{})[it.id];
+cv=document.createElement('canvas');cv.width=120;cv.height=78;
+cv.style.cssText='border-radius:10px;width:96px;height:62px;box-shadow:0 3px 10px rgba(0,0,0,.15)';
+if(skin){const cc=cv.getContext('2d');cc.save();skin.draw(cc,120,78);cc.restore();}
+nameKey='bg_'+it.id;
+}else{
+const skins=it.type==='ball'?Game.player.ballSkins:Game.player.trailSkins;
+const skin=(skins||{})[it.id];
+cv=document.createElement('canvas');cv.width=58;cv.height=58;
+cv.style.cssText='border-radius:12px;background:rgba(93,64,55,.05);width:58px;height:58px';
+if(skin){const cc=cv.getContext('2d');cc.save();cc.translate(29,29);
+if(it.type==='ball'){cc.fillStyle=skin.color;skin.draw(cc);}
+else{cc.globalAlpha=.9;cc.fillStyle=skin.color;skin.draw(cc,{x:0,y:0,life:0.9});cc.globalAlpha=.7;skin.draw(cc,{x:-4,y:5,life:0.7});cc.globalAlpha=.5;skin.draw(cc,{x:4,y:-5,life:0.5});cc.globalAlpha=1;}
+cc.restore();}
+nameKey=(it.type==='ball'?'ball_':'trail_')+it.id;
+}
+wrap.appendChild(cv);
+const nm=document.createElement('div');
+nm.style.cssText='font-size:.62rem;font-weight:800;color:var(--text);max-width:96px;line-height:1.1';
+nm.textContent=I18N.t(nameKey);
+wrap.appendChild(nm);
+const tag=document.createElement('div');
+tag.style.cssText='font-size:.55rem;color:var(--text-light);opacity:.7';
+tag.textContent=it.type==='ball'?I18N.t('balls'):it.type==='trail'?I18N.t('trails'):I18N.t('backgrounds');
+wrap.appendChild(tag);
+return wrap;
+}
+
+// Pack preview modal: shows the contents before buying.
+function showPackPreview(pack,btnLabel){
+const packName=pack.nameKey?I18N.t(pack.nameKey):pack.name;
+const overlay=document.createElement('div');
+overlay.style.cssText='position:fixed;inset:0;z-index:120;background:rgba(40,28,18,.55);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top) + 16px) 20px calc(env(safe-area-inset-bottom) + 16px)';
+const close=()=>overlay.remove();
+overlay.onclick=e=>{if(e.target===overlay)close();};
+const card=document.createElement('div');
+card.style.cssText='background:linear-gradient(180deg,#FFFFFF,#FFF8EE);border-radius:22px;padding:22px 18px;max-width:340px;width:100%;max-height:86vh;overflow:auto;box-shadow:0 18px 50px rgba(0,0,0,.3);border:1px solid rgba(142,99,180,.12);text-align:center';
+card.innerHTML=`<div style="font-size:1.5rem">🎁</div><div style="font-weight:900;font-size:1.05rem;margin:4px 0 2px;color:var(--text)">${packName}</div><div style="font-size:.72rem;color:var(--text-light);margin-bottom:16px">${I18N.t('exclusive')}</div>`;
+const row=document.createElement('div');
+row.style.cssText='display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-bottom:18px';
+(pack.content||[]).forEach(it=>row.appendChild(buildCosmeticPreview(it)));
+card.appendChild(row);
+const buyBtn=document.createElement('button');
+buyBtn.className='btn btn-primary';buyBtn.style.cssText='width:100%;margin-bottom:8px';
+buyBtn.textContent=btnLabel;
+buyBtn.onclick=()=>{doPurchasePack(pack,btnLabel,buyBtn);close();};
+card.appendChild(buyBtn);
+const closeBtn=document.createElement('button');
+closeBtn.className='btn btn-secondary';closeBtn.style.cssText='width:100%';
+closeBtn.textContent=I18N.t('close');
+closeBtn.onclick=close;
+card.appendChild(closeBtn);
+overlay.appendChild(card);
+document.body.appendChild(overlay);
 }
 
 // === LEADERBOARD TABS STATE ===
