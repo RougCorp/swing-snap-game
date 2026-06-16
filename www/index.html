@@ -2114,7 +2114,12 @@ perfectChain:0,multiplier:1,
 init(){
 I18N.detect();
 I18N.apply();
-this.resize();window.addEventListener('resize',()=>this.resize());
+this.resize();
+const onResize=()=>this.resize();
+window.addEventListener('resize',onResize);
+// iOS reports stale dimensions immediately after rotation → re-run shortly after.
+window.addEventListener('orientationchange',()=>{onResize();setTimeout(onResize,300);});
+if(window.visualViewport)window.visualViewport.addEventListener('resize',onResize);
 this.setupEvents();
 try{SoundManager.init();}catch(e){}
 // Pause audio quand l'app passe en background
@@ -2142,11 +2147,19 @@ $('tutorialOverlay').addEventListener('click',()=>{if(this.state==='TUTORIAL'){T
 },
 resize(){
 const dpr=window.devicePixelRatio||1;
-this.width=window.innerWidth;
-this.height=window.innerHeight;
+// Use the visual viewport when available (most accurate visible area on iOS
+// with viewport-fit=cover / notches / dynamic toolbars); fall back to inner*.
+const vv=window.visualViewport;
+this.width=Math.round(vv&&vv.width?vv.width:window.innerWidth);
+this.height=Math.round(vv&&vv.height?vv.height:window.innerHeight);
 this.canvas.width=Math.ceil(this.width*dpr);
 this.canvas.height=Math.ceil(this.height*dpr);
-// CSS handles display size (position:fixed;width:100vw;height:100vh) — no style override needed
+// Lock the CSS display size to the logical size so the backing buffer maps
+// 1:1 on every device. Relying on CSS 100vw/100vh breaks when 100vh != the
+// real visible height (notched iOS, dynamic browser UI) → the playfield ends
+// up stretched / offset / cut at the edges on some phones.
+this.canvas.style.width=this.width+'px';
+this.canvas.style.height=this.height+'px';
 this.ctx.setTransform(1,0,0,1,0,0);
 this.ctx.scale(dpr,dpr);
 // Marquer qu'on a besoin de réinitialiser les backgrounds
