@@ -25,3 +25,8 @@ android/capacitor-cordova-android-plugins/build/
 # Firebase service account key (SECRET)
 tools/migrate-alltime/serviceAccountKey.json
 tools/migrate-alltime/node_modules/
+
+# Firebase Functions
+functions/node_modules/
+.firebase/
+firebase-debug.log
