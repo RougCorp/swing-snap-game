@@ -1223,9 +1223,9 @@ const PACKS=[
 {id:'gems2',type:'gems',amount:600,price:'2,99',nameKey:'pack_gems2'},
 {id:'gems3',type:'gems',amount:1500,price:'4,99',nameKey:'pack_gems3'},
 {id:'noads',type:'misc',nameKey:'pack_noads',price:'2,99'},
-{id:'starter',type:'skin',nameKey:'pack_starter',price:'1,99',content:[{type:'ball',id:'star'},{type:'trail',id:'star'},{type:'bg',id:'star'}]},
-{id:'cosmic',type:'skin',nameKey:'pack_cosmic',price:'3,49',content:[{type:'ball',id:'supernova'},{type:'trail',id:'supernova'},{type:'bg',id:'supernova'}]},
-{id:'ultimate',type:'skin',nameKey:'pack_ultimate',price:'4,99',content:[{type:'ball',id:'galaxy'},{type:'trail',id:'galaxy'},{type:'bg',id:'galaxy'}]}
+{id:'starter',type:'skin',nameKey:'pack_starter',price:'1,99',content:[{type:'ball',id:'star'},{type:'trail',id:'star'},{type:'bg',id:'star'},{type:'emblem',id:'shield_star'},{type:'banner',id:'sunset'}]},
+{id:'cosmic',type:'skin',nameKey:'pack_cosmic',price:'3,49',content:[{type:'ball',id:'supernova'},{type:'trail',id:'supernova'},{type:'bg',id:'supernova'},{type:'emblem',id:'flame'},{type:'banner',id:'fire'}]},
+{id:'ultimate',type:'skin',nameKey:'pack_ultimate',price:'4,99',content:[{type:'ball',id:'galaxy'},{type:'trail',id:'galaxy'},{type:'bg',id:'galaxy'},{type:'emblem',id:'galaxy_emb'},{type:'banner',id:'galaxy_ban'}]}
 ];
 
 // === EMBLEMS (profil — achetés avec gemmes BLEUES) ===
@@ -3430,7 +3430,8 @@ let isOwned=(pack.id==='noads'&&DataManager.data.noAds)
   ||(pack.type==='skin'&&DataManager.data.unlockedPacks&&DataManager.data.unlockedPacks.includes(pack.id))
   ||(pack.type!=='gems'&&typeof IAP!=='undefined'&&IAP.isOwned&&IAP.isOwned(pack.id));
 const packName=pack.nameKey?I18N.t(pack.nameKey):pack.name;
-const packDesc=pack.type==='gems'?pack.amount+' '+I18N.t('stat_gems_t'):(pack.id==='noads'?I18N.t('no_ads'):pack.content.map(i=>i.type==='bg'?'🖼️':(i.type==='ball'?'⚪':'〰️')).join('')+' '+I18N.t('exclusive'));
+const _icoByType={ball:'⚪',trail:'〰️',bg:'🖼️',emblem:'🎖️',banner:'🏳️'};
+const packDesc=pack.type==='gems'?pack.amount+' '+I18N.t('stat_gems_t'):(pack.id==='noads'?I18N.t('no_ads'):pack.content.map(i=>_icoByType[i.type]||'✨').join('')+' '+I18N.t('exclusive'));
 const ownedBadge=isOwned?`<button class="pack-price-btn" disabled style="background:var(--success,#4caf50);color:#fff;font-size:.75rem">✓</button>`:`<button class="pack-price-btn">${btn}</button>`;
 if(isOwned)div.style.opacity=.5;
 div.innerHTML=`<div style="font-size:1.4rem">${icon}</div><div style="text-align:left;flex:1"><div style="font-weight:900;font-size:.88rem;">${packName}</div><div style="font-size:.68rem;color:var(--text-light);">${packDesc}</div></div>${ownedBadge}`;
@@ -3463,32 +3464,33 @@ if(confirm(I18N.t('confirm_buy_pack',packName,pack.price))){deliverEntitlement(p
 function buildCosmeticPreview(it){
 const wrap=document.createElement('div');
 wrap.style.cssText='display:flex;flex-direction:column;align-items:center;gap:5px';
-let nameKey,cv;
-if(it.type==='bg'){
-const skin=(Game.player.bgSkins||{})[it.id];
+let nameText,cv;
+const wide=(it.type==='bg'||it.type==='banner'); // rendu rectangulaire
+if(wide){
+const def=it.type==='banner'?(BANNERS||{})[it.id]:(Game.player.bgSkins||{})[it.id];
 cv=document.createElement('canvas');cv.width=120;cv.height=78;
 cv.style.cssText='border-radius:10px;width:96px;height:62px;box-shadow:0 3px 10px rgba(0,0,0,.15)';
-if(skin){const cc=cv.getContext('2d');cc.save();skin.draw(cc,120,78);cc.restore();}
-nameKey='bg_'+it.id;
+if(def){const cc=cv.getContext('2d');cc.save();def.draw(cc,120,78);cc.restore();}
+nameText=it.type==='banner'?(def?def.name:it.id):I18N.t('bg_'+it.id);
 }else{
-const skins=it.type==='ball'?Game.player.ballSkins:Game.player.trailSkins;
-const skin=(skins||{})[it.id];
+const def=it.type==='emblem'?(EMBLEMS||{})[it.id]:(it.type==='ball'?Game.player.ballSkins:Game.player.trailSkins)[it.id];
 cv=document.createElement('canvas');cv.width=58;cv.height=58;
 cv.style.cssText='border-radius:12px;background:rgba(93,64,55,.05);width:58px;height:58px';
-if(skin){const cc=cv.getContext('2d');cc.save();cc.translate(29,29);
-if(it.type==='ball'){cc.fillStyle=skin.color;skin.draw(cc);}
-else{cc.globalAlpha=.9;cc.fillStyle=skin.color;skin.draw(cc,{x:0,y:0,life:0.9});cc.globalAlpha=.7;skin.draw(cc,{x:-4,y:5,life:0.7});cc.globalAlpha=.5;skin.draw(cc,{x:4,y:-5,life:0.5});cc.globalAlpha=1;}
+if(def){const cc=cv.getContext('2d');cc.save();cc.translate(29,29);
+if(it.type==='trail'){cc.globalAlpha=.9;cc.fillStyle=def.color;def.draw(cc,{x:0,y:0,life:0.9});cc.globalAlpha=.7;def.draw(cc,{x:-4,y:5,life:0.7});cc.globalAlpha=.5;def.draw(cc,{x:4,y:-5,life:0.5});cc.globalAlpha=1;}
+else{cc.fillStyle=def.color;def.draw(cc);} // ball + emblem
 cc.restore();}
-nameKey=(it.type==='ball'?'ball_':'trail_')+it.id;
+nameText=it.type==='emblem'?(def?def.name:it.id):I18N.t((it.type==='ball'?'ball_':'trail_')+it.id);
 }
 wrap.appendChild(cv);
 const nm=document.createElement('div');
 nm.style.cssText='font-size:.62rem;font-weight:800;color:var(--text);max-width:96px;line-height:1.1';
-nm.textContent=I18N.t(nameKey);
+nm.textContent=nameText;
 wrap.appendChild(nm);
 const tag=document.createElement('div');
 tag.style.cssText='font-size:.55rem;color:var(--text-light);opacity:.7';
-tag.textContent=it.type==='ball'?I18N.t('balls'):it.type==='trail'?I18N.t('trails'):I18N.t('backgrounds');
+const tagKey={ball:'balls',trail:'trails',bg:'backgrounds',emblem:'emblems',banner:'banners'}[it.type];
+tag.textContent=I18N.t(tagKey);
 wrap.appendChild(tag);
 return wrap;
 }
@@ -3811,6 +3813,8 @@ pack.content.forEach(i=>{
 if(i.type==='ball'){if(!DataManager.data.skins.includes(i.id))DataManager.data.skins.push(i.id);}
 else if(i.type==='trail'){if(!DataManager.data.trails.includes(i.id))DataManager.data.trails.push(i.id);}
 else if(i.type==='bg'){if(!DataManager.data.backgrounds.includes(i.id))DataManager.data.backgrounds.push(i.id);}
+else if(i.type==='emblem'){if(!DataManager.data.emblems.includes(i.id))DataManager.data.emblems.push(i.id);}
+else if(i.type==='banner'){if(!DataManager.data.banners.includes(i.id))DataManager.data.banners.push(i.id);}
 });
 showToast(I18N.t('toast_pack_unlocked'));
 }
