@@ -2700,16 +2700,14 @@ const cc=cv.getContext('2d');
 cc.save();
 cc.translate(26,26);
 if(cfg.kind==='ball'){
+// Halo coloré derrière les vraies balles (rappelle la lueur en jeu) — pas pour les emblèmes (écussons).
+if(Game.currentTab==='balls'&&item.color){const gg=cc.createRadialGradient(0,0,2,0,0,19);gg.addColorStop(0,item.color);gg.addColorStop(1,'rgba(0,0,0,0)');cc.save();cc.globalAlpha=.32;cc.fillStyle=gg;cc.beginPath();cc.arc(0,0,19,0,6.28);cc.fill();cc.restore();}
 cc.fillStyle=item.color;
 item.draw(cc);
 }else{
-cc.globalAlpha=.9;
+// Traînée rendue en comète plus fournie (6 particules dégradées) → plus qualitatif.
 cc.fillStyle=item.color;
-item.draw(cc,{x:0,y:0,life:0.9});
-cc.globalAlpha=.7;
-item.draw(cc,{x:-4,y:5,life:0.7});
-cc.globalAlpha=.5;
-item.draw(cc,{x:4,y:-5,life:0.5});
+[[0,1,.95],[-3,4,.82],[3,-3,.74],[-6,8,.58],[6,-7,.5],[1,11,.4]].forEach(([x,y,l])=>{cc.globalAlpha=l;item.draw(cc,{x,y,life:l});});
 cc.globalAlpha=1;
 }
 cc.restore();
