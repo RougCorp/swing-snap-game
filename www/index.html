@@ -4190,7 +4190,7 @@ window.onload=()=>Game.init();
 /* ===== DuelManager : matchmaking + arène live + résultat + ligue ===== */
 const DuelManager=(function(){
   const E=window.DuelEngine;
-  const COUNT=40;                 // pivots par duel
+  const COUNT=31;                 // 30 pivots à atteindre (score max 30, affichage "/ 30")
   const BOT_TIMEOUT=12000;        // bascule auto vers un bot après 12s d'attente
   const TIERS=[                   // ligues (paliers de points)
     {id:'bronze',name:'Bronze',min:0,color:'#CD7F32'},
@@ -4240,7 +4240,7 @@ const DuelManager=(function(){
   }
 
   // ---- canvas ----
-  function mount(){const cv=$('duelCanvas');const dpr=window.devicePixelRatio||1;const w=window.innerWidth,h=window.innerHeight;cv.width=w*dpr;cv.height=h*dpr;cv.style.width=w+'px';cv.style.height=h+'px';M.ctx=cv.getContext('2d');M.dpr=dpr;M.cssW=w;M.cssH=h;M.scale=h/820;}
+  function mount(){const cv=$('duelCanvas');const dpr=window.devicePixelRatio||1;const w=window.innerWidth,h=window.innerHeight;cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);cv.style.width=w+'px';cv.style.height=h+'px';M.ctx=cv.getContext('2d');M.ctx.setTransform(dpr,0,0,dpr,0,0);M.dpr=dpr;M.cssW=w;M.cssH=h;M.scale=h/820;}
   function S(vx,vy){return {x:(vx-M.camX)*M.scale+M.cssW/2,y:(vy-M.camY)*M.scale+M.cssH/2};}
 
   // ---- physique joueur (miroir fidèle du moteur, input = tap) ----
@@ -4276,17 +4276,30 @@ const DuelManager=(function(){
     c.strokeStyle='rgba(255,255,255,.09)';c.lineWidth=2;c.beginPath();for(let i=1;i<M.level.length;i++){const a=S(M.level[i-1].x,M.level[i-1].y),b=S(M.level[i].x,M.level[i].y);c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);}c.stroke();
     // pivots
     for(let i=0;i<M.level.length;i++){const p=M.level[i];const sp=S(p.x,p.y);if(sp.x<-sr||sp.x>w+sr||sp.y<-sr||sp.y>h+sr)continue;
-      c.strokeStyle=i<M.P.targetIdx?'rgba(124,179,66,.18)':'rgba(255,255,255,.13)';c.lineWidth=2;c.beginPath();c.arc(sp.x,sp.y,sr,0,6.28);c.stroke();
-      c.fillStyle=i<M.P.targetIdx?'#7CB342':'#F4A926';c.beginPath();c.arc(sp.x,sp.y,Math.max(3,6*M.scale),0,6.28);c.fill();}
+      // anneau de snap seulement pour le pivot courant + la cible (sinon arène trop chargée)
+      if(i===M.P.targetIdx||i===M.P.targetIdx-1){c.strokeStyle=i<M.P.targetIdx?'rgba(124,179,66,.35)':'rgba(255,255,255,.28)';c.lineWidth=2;c.beginPath();c.arc(sp.x,sp.y,sr,0,6.28);c.stroke();}
+      c.fillStyle=i<M.P.targetIdx?'rgba(124,179,66,.55)':'#F4A926';c.beginPath();c.arc(sp.x,sp.y,Math.max(3,(i>=M.P.targetIdx-1&&i<=M.P.targetIdx?7:4.5)*M.scale),0,6.28);c.fill();}
     // cible courante : zone perfect (cône doré)
     const tp=M.level[M.P.targetIdx];if(tp){const sp=S(tp.x,tp.y);const half=Math.asin(Math.min(0.98,E.SIM.perfectRadius/E.SIM.snapRadius));
       c.save();c.strokeStyle='#FFD54F';c.lineWidth=4;c.shadowBlur=10;c.shadowColor='rgba(255,200,40,.7)';c.beginPath();c.arc(sp.x,sp.y,sr,tp.coneAngle-half,tp.coneAngle+half);c.stroke();c.restore();
       c.strokeStyle='rgba(255,213,79,.5)';c.lineWidth=2;c.beginPath();c.arc(sp.x,sp.y,sr+Math.sin(now/200)*3,0,6.28);c.stroke();}
     // fantôme adverse
     const g=M.ghost,gf=Math.min(M.ghostFrame,g.traj.length-1),gp=g.traj[gf];if(gp){const s=S(gp.x,gp.y);const oppCol=(((typeof EMBLEMS!=='undefined'?EMBLEMS:{})[M.opp.emblem])||{}).color||'#E91E63';
-      // traînée fantôme
-      c.save();for(let k=1;k<=8;k++){const idx=gf-k*2;if(idx<0)break;const tp2=g.traj[idx];const ss=S(tp2.x,tp2.y);c.globalAlpha=(1-k/9)*0.35;c.fillStyle=oppCol;c.beginPath();c.arc(ss.x,ss.y,7*M.scale,0,6.28);c.fill();}c.restore();
-      c.save();c.globalAlpha=.7;c.fillStyle=oppCol;c.shadowBlur=12;c.shadowColor=oppCol;c.beginPath();c.arc(s.x,s.y,11*M.scale,0,6.28);c.fill();c.globalAlpha=1;c.strokeStyle='rgba(255,255,255,.85)';c.lineWidth=2;c.stroke();c.restore();}
+      const mg=30*M.scale,onScreen=(s.x>=-mg&&s.x<=w+mg&&s.y>=-mg&&s.y<=h+mg);
+      if(onScreen){
+        // traînée fantôme
+        c.save();for(let k=1;k<=8;k++){const idx=gf-k*2;if(idx<0)break;const tp2=g.traj[idx];const ss=S(tp2.x,tp2.y);c.globalAlpha=(1-k/9)*0.38;c.fillStyle=oppCol;c.beginPath();c.arc(ss.x,ss.y,7*M.scale,0,6.28);c.fill();}c.restore();
+        c.save();c.globalAlpha=.8;c.fillStyle=oppCol;c.shadowBlur=14;c.shadowColor=oppCol;c.beginPath();c.arc(s.x,s.y,12*M.scale,0,6.28);c.fill();c.globalAlpha=1;c.strokeStyle='rgba(255,255,255,.9)';c.lineWidth=2.5;c.stroke();c.restore();
+        // étiquette nom au-dessus du fantôme
+        c.save();c.font='900 13px Nunito,sans-serif';c.textAlign='center';const nm=M.opp.name||'';const tw=c.measureText(nm).width+12,ty=s.y-20*M.scale;c.fillStyle='rgba(0,0,0,.5)';c.beginPath();c.roundRect?c.roundRect(s.x-tw/2,ty-13,tw,16,8):c.fillRect(s.x-tw/2,ty-13,tw,16);c.fill();c.fillStyle='#fff';c.fillText(nm,s.x,ty);c.restore();
+      }else{
+        // hors écran : flèche au bord pointant vers le fantôme + nom/score
+        const cx=w/2,cy=h/2,dx=s.x-cx,dy=s.y-cy,ang=Math.atan2(dy,dx);
+        const padX=w/2-30,padY=h/2-30;let t=Infinity;if(Math.abs(dx)>0.001)t=Math.min(t,padX/Math.abs(dx));if(Math.abs(dy)>0.001)t=Math.min(t,padY/Math.abs(dy));if(!isFinite(t))t=0;
+        const ax=cx+dx*t,ay=cy+dy*t;
+        c.save();c.translate(ax,ay);c.rotate(ang);c.fillStyle=oppCol;c.shadowBlur=8;c.shadowColor=oppCol;c.beginPath();c.moveTo(15,0);c.lineTo(-9,-10);c.lineTo(-9,10);c.closePath();c.fill();c.restore();
+        c.save();c.font='900 12px Nunito,sans-serif';c.textAlign='center';const lbl=(M.opp.name||'')+' · '+(g.scores[gf]||0);const tw=c.measureText(lbl).width+14;const lx=Math.max(tw/2+4,Math.min(w-tw/2-4,ax)),ly=Math.max(22,Math.min(h-10,ay+(ay<cy?26:-18)));c.fillStyle='rgba(0,0,0,.62)';c.fillRect(lx-tw/2,ly-13,tw,17);c.fillStyle=oppCol;c.fillText(lbl,lx,ly);c.restore();
+      }}
     // joueur : corde + traînée + balle (skins courants)
     const P=M.P;const ps=S(P.pos.x,P.pos.y);
     if(P.attached){const pv=S(P.pivot.x,P.pivot.y);c.strokeStyle='rgba(255,255,255,.7)';c.lineWidth=2.5;c.beginPath();c.moveTo(pv.x,pv.y);c.lineTo(ps.x,ps.y);c.stroke();}
