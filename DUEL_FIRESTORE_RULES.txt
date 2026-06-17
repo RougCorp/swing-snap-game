@@ -1,0 +1,50 @@
+RÈGLES FIRESTORE À AJOUTER POUR LES DUELS + AMIS
+================================================
+
+Les règles Firestore de ce projet sont gérées dans la CONSOLE Firebase
+(console.firebase.google.com → Firestore Database → Règles), PAS via un
+fichier déployé (firebase.json ne contient que "functions").
+
+⚠️ NE REMPLACE PAS tes règles existantes — AJOUTE seulement les blocs
+ci-dessous À L'INTÉRIEUR de `match /databases/{database}/documents { ... }`,
+À CÔTÉ de tes règles actuelles (weeklyScores, allTimeScores, blitz…).
+Sinon le classement existant cesserait de fonctionner.
+
+Auth = anonyme (déjà en place). Ces collections sont NOUVELLES, dédiées au
+mode Duel — elles n'écrasent rien.
+
+------------------------------------------------------------------
+    // --- DUELS : file de matchmaking / runs publiés ---
+    match /duelQueue/{uid} {
+      allow read: if request.auth != null;
+      // chacun n'écrit que SON propre run
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // --- AMIS : profils publics de duel ---
+    match /duelProfiles/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid;
+
+      // liste d'amis (écriture mutuelle autorisée : on peut s'ajouter
+      // dans la liste d'un autre joueur lors d'un ajout par code)
+      match /friends/{friendUid} {
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow write: if request.auth != null;
+      }
+    }
+
+    // --- AMIS : annuaire code -> uid ---
+    match /friendCodes/{code} {
+      allow read: if request.auth != null;
+      // un joueur ne pose que SON propre mapping
+      allow write: if request.auth != null && request.data.uid == request.auth.uid;
+    }
+------------------------------------------------------------------
+
+Après avoir collé ça (en gardant tes règles existantes), clique "Publier".
+
+Tant que ce n'est pas fait : le jeu fonctionne quand même (les appels
+réseau échouent silencieusement → repli bot pour les duels, et la liste
+d'amis reste vide). Une fois publié, le matchmaking entre vrais joueurs
+et les amis (codes + duels async + stats V/D) s'activent.

@@ -4086,8 +4086,21 @@ window.onload=()=>Game.init();
   <h1 style="font-size:2rem">⚔️ <span data-i18n="duel_title">DUEL</span></h1>
   <div id="duelHubLeague" style="background:linear-gradient(135deg,rgba(142,99,180,.12),rgba(244,169,38,.12));border:2px solid rgba(142,99,180,.25);border-radius:18px;padding:14px 16px;margin-bottom:14px;width:100%;box-sizing:border-box"></div>
   <button class="btn btn-primary" id="duelQuickBtn">🎯 <span data-i18n="duel_quick">Match rapide</span></button>
+  <button class="btn btn-secondary" id="duelFriendsBtn" style="border-color:#42A5F5;color:#1976D2">👥 <span data-i18n="duel_friends">Amis</span></button>
   <div id="duelHubRecord" style="font-size:.85rem;color:var(--text-light);font-weight:800;margin:8px 0"></div>
   <button class="btn btn-secondary" id="duelHubClose" data-i18n="back">RETOUR</button>
+</div>
+<!-- Friends screen -->
+<div id="friendsScreen" class="screen ui-element">
+  <h1 style="font-size:1.7rem">👥 <span data-i18n="duel_friends">Amis</span></h1>
+  <div id="friendsMyCode" style="background:linear-gradient(135deg,rgba(66,165,245,.12),rgba(142,99,180,.12));border:2px solid rgba(66,165,245,.25);border-radius:16px;padding:12px 14px;margin-bottom:12px;width:100%;box-sizing:border-box;text-align:center"></div>
+  <div style="display:flex;gap:8px;width:100%;margin-bottom:10px">
+    <input id="friendCodeInput" maxlength="6" placeholder="CODE AMI" autocomplete="off" autocapitalize="characters" style="flex:1;min-width:0;padding:12px;border:2px solid rgba(0,0,0,.1);border-radius:14px;font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem;text-align:center;letter-spacing:3px;text-transform:uppercase;background:var(--bg);color:var(--text)">
+    <button id="friendAddBtn" class="btn btn-primary" style="width:auto;padding:12px 18px;margin:0">＋</button>
+  </div>
+  <div id="friendsList" style="width:100%;display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow-y:auto"></div>
+  <div id="friendsEmpty" style="font-size:.82rem;color:var(--text-light);font-weight:700;margin:10px 0;display:none"></div>
+  <button class="btn btn-secondary" id="friendsClose" data-i18n="back" style="margin-top:8px">RETOUR</button>
 </div>
 
 <script>
@@ -4323,11 +4336,18 @@ const DuelManager=(function(){
 
   function startBot(){clearInterval(M._mmTimer);M.state='matchmaking';M.opp=makeBot();M.seed=(Date.now()^(Math.random()*1e9))>>>0;$('duelMmText').textContent=I18N.t('duel_found');setTimeout(startPlay,500);}
 
+  // Défier un ami : on rejoue son DERNIER run publié (vrai duel async) ; à défaut, un bot calibré à sa ligue, étiqueté à son nom (le H2H compte car opp.uid est défini).
+  async function challengeFriend(friend){ensureData();
+    let run=null,seed=(Date.now()^(Math.random()*1e9))>>>0;
+    try{const LB=(typeof WeeklyLeaderboard!=='undefined')?WeeklyLeaderboard:null;const db=LB&&LB._db;if(db&&friend.uid){const doc=await db.collection('duelQueue').doc(friend.uid).get();if(doc.exists){const v=doc.data();if(v.run&&v.seed!=null){run=v.run;seed=v.seed;}}}}catch(e){}
+    M.opp={name:friend.name,emblem:friend.emblem||'classic',uid:friend.uid,leaguePoints:friend.leaguePoints||0,isBot:!run,run};
+    M.seed=seed;$('duelMatchmaking').style.display='none';startPlay();}
+
   function cancelMatchmaking(){clearInterval(M._mmTimer);M.state='idle';$('duelMatchmaking').style.display='none';openHub();}
 
   function quit(){M.active=false;cancelAnimationFrame(M.raf);M.state='idle';$('duelCanvas').style.display='none';$('duelHud').style.display='none';$('duelQuitBtn').style.display='none';$('duelResult').style.display='none';openHub();}
 
-  function openHub(){ensureData();document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$('duelHub').classList.add('active');
+  function openHub(){ensureData();try{FriendManager.syncProfile();}catch(e){}document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$('duelHub').classList.add('active');
     const d=DataManager.data;const tier=tierFor(d.leaguePoints);const nt=nextTier(d.leaguePoints);
     $('duelHubLeague').innerHTML='<div style="font-size:.72rem;color:var(--text-light);font-weight:800;letter-spacing:1px;margin-bottom:4px">'+I18N.t('duel_league').toUpperCase()+'</div>'+
       '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div style="font-size:1.3rem;font-weight:900;color:'+tier.color+'">'+tier.name+'</div><div style="font-size:1.1rem;font-weight:900;color:var(--text)">'+d.leaguePoints+' <span style="font-size:.7rem;opacity:.7">'+I18N.t('duel_points')+'</span></div></div>'+
@@ -4354,10 +4374,81 @@ const DuelManager=(function(){
     $('duelQuickBtn').onclick=openMatchmaking;
     $('duelHubClose').onclick=()=>{$('duelHub').classList.remove('active');$('menuScreen').classList.add('active');};
     const mb=$('btnDuel');if(mb)mb.onclick=openHub;
+    // Les écrans .screen doivent vivre DANS #uiLayer (conteneur flex centré) pour s'afficher correctement.
+    const ui=$('uiLayer');if(ui){const h=$('duelHub'),f=$('friendsScreen');if(h)ui.appendChild(h);if(f)ui.appendChild(f);}
     window.addEventListener('resize',()=>{if(M.active)mount();});
   }
   if(document.readyState!=='loading')setTimeout(init,0);else document.addEventListener('DOMContentLoaded',init);
-  return {openHub,openMatchmaking,_M:M};
+  return {openHub,openMatchmaking,challengeFriend,_M:M};
+})();
+
+/* ===== FriendManager : amis (codes + liste + duels entre amis + H2H) ===== */
+const FriendManager=(function(){
+  function db(){const LB=(typeof WeeklyLeaderboard!=='undefined')?WeeklyLeaderboard:null;return LB&&LB._db;}
+  function uid(){const LB=(typeof WeeklyLeaderboard!=='undefined')?WeeklyLeaderboard:null;return LB&&LB._uid;}
+  const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sans I/O/0/1 (lisible)
+  function codeFromUid(u){let h=2166136261>>>0;for(let i=0;i<u.length;i++){h^=u.charCodeAt(i);h=Math.imul(h,16777619)>>>0;}let s='',n=h;for(let i=0;i<6;i++){s+=A[n%32];n=(Math.floor(n/32)+((h>>>(i*3))&31))>>>0;}return s;}
+  function myCode(){const u=uid();return u?codeFromUid(u):'------';}
+
+  async function syncProfile(){try{const d=db(),u=uid();if(!d||!u)return;const dd=DataManager.data;const code=codeFromUid(u);
+    await d.collection('duelProfiles').doc(u).set({name:(dd.playerName||'Joueur').slice(0,20),emblem:dd.currentEmblem||'classic',banner:dd.currentBanner||'classic',leaguePoints:dd.leaguePoints||0,code,ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    await d.collection('friendCodes').doc(code).set({uid:u},{merge:true});}catch(e){}}
+
+  async function addByCode(codeRaw){const code=(codeRaw||'').trim().toUpperCase();if(code.length!==6)return {ok:false,msg:I18N.t('friend_bad_code')};
+    const d=db(),u=uid();if(!d||!u)return {ok:false,msg:I18N.t('friend_offline')};
+    if(code===myCode())return {ok:false,msg:I18N.t('friend_self')};
+    try{const cd=await d.collection('friendCodes').doc(code).get();if(!cd.exists)return {ok:false,msg:I18N.t('friend_notfound')};
+      const fuid=cd.data().uid;if(!fuid||fuid===u)return {ok:false,msg:I18N.t('friend_self')};
+      const now=firebase.firestore.FieldValue.serverTimestamp();
+      await d.collection('duelProfiles').doc(u).collection('friends').doc(fuid).set({since:now},{merge:true});
+      await d.collection('duelProfiles').doc(fuid).collection('friends').doc(u).set({since:now},{merge:true});
+      return {ok:true};
+    }catch(e){return {ok:false,msg:I18N.t('friend_offline')};}}
+
+  async function listFriends(){const d=db(),u=uid();if(!d||!u)return [];
+    try{const snap=await d.collection('duelProfiles').doc(u).collection('friends').get();const out=[];
+      for(const doc of snap.docs){const fuid=doc.id;let prof={name:'Joueur',emblem:'classic',leaguePoints:0};
+        try{const p=await d.collection('duelProfiles').doc(fuid).get();if(p.exists)prof=Object.assign(prof,p.data());}catch(e){}
+        out.push({uid:fuid,name:prof.name,emblem:prof.emblem,leaguePoints:prof.leaguePoints||0});}
+      return out;
+    }catch(e){return [];}}
+
+  function renderMyCode(){const el=$('friendsMyCode');if(!el)return;el.innerHTML='<div style="font-size:.7rem;color:var(--text-light);font-weight:800;letter-spacing:1px;margin-bottom:3px">'+I18N.t('friend_your_code').toUpperCase()+'</div><div style="font-size:1.8rem;font-weight:900;letter-spacing:5px;color:#1976D2">'+myCode()+'</div><div style="font-size:.66rem;color:var(--text-light);margin-top:3px">'+I18N.t('friend_share_hint')+'</div>';}
+
+  async function open(){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$('friendsScreen').classList.add('active');
+    renderMyCode();syncProfile();
+    const list=$('friendsList');list.innerHTML='<div style="text-align:center;color:var(--text-light);font-size:.8rem;padding:14px">…</div>';$('friendsEmpty').style.display='none';
+    const friends=await listFriends();render(friends);}
+
+  function render(friends){const list=$('friendsList');list.innerHTML='';const empty=$('friendsEmpty');
+    if(!friends.length){empty.style.display='block';empty.textContent=db()?I18N.t('friend_none'):I18N.t('friend_offline');return;}
+    empty.style.display='none';
+    const h2h=DataManager.data.h2h||{};
+    friends.forEach(f=>{const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:10px;background:var(--card);border-radius:14px;padding:8px 10px;box-shadow:0 2px 8px rgba(0,0,0,.06)';
+      const cv=document.createElement('canvas');row.appendChild(cv);
+      const info=document.createElement('div');info.style.cssText='flex:1;min-width:0';
+      const rec=h2h[f.uid];const recTxt=rec?('<span style="color:#4CAF50">'+rec.w+'V</span> · <span style="color:#E53935">'+rec.l+'D</span>'+(rec.d?' · '+rec.d+'N':'')):I18N.t('friend_no_h2h');
+      info.innerHTML='<div style="font-weight:900;font-size:.9rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+f.name+'</div><div style="font-size:.7rem;color:var(--text-light);font-weight:700">'+recTxt+'</div>';
+      row.appendChild(info);
+      const btn=document.createElement('button');btn.className='btn btn-primary';btn.style.cssText='width:auto;margin:0;padding:9px 14px;font-size:.85rem;flex-shrink:0';btn.textContent='⚔️';
+      btn.onclick=()=>{DuelManager.challengeFriend(f);};
+      row.appendChild(btn);list.appendChild(row);
+      try{const EM=(typeof EMBLEMS!=='undefined'?EMBLEMS:{});const emb=EM[f.emblem]||EM.classic;const dpr=window.devicePixelRatio||1;cv.width=40*dpr;cv.height=40*dpr;cv.style.cssText='width:40px;height:40px;background:rgba(255,255,255,.9);border-radius:50%;flex-shrink:0';const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.translate(20,20);c.scale(40/30,40/30);if(emb){c.fillStyle=emb.color;emb.draw(c);}}catch(e){}
+    });}
+
+  if(typeof I18N!=='undefined'&&I18N.L){
+    Object.assign(I18N.L.fr,{duel_friends:'Amis',friend_your_code:'Ton code ami',friend_share_hint:'Partage-le pour qu\'on t\'ajoute',friend_none:'Aucun ami pour l\'instant. Partage ton code !',friend_offline:'Connexion requise pour les amis',friend_bad_code:'Code à 6 caractères',friend_notfound:'Code introuvable',friend_self:'C\'est ton propre code 😅',friend_added:'Ami ajouté !',friend_no_h2h:'Jamais affrontés'});
+    Object.assign(I18N.L.en,{duel_friends:'Friends',friend_your_code:'Your friend code',friend_share_hint:'Share it so people can add you',friend_none:'No friends yet. Share your code!',friend_offline:'Connection required for friends',friend_bad_code:'6-character code',friend_notfound:'Code not found',friend_self:'That\'s your own code 😅',friend_added:'Friend added!',friend_no_h2h:'Never faced'});
+  }
+
+  function init(){
+    const ab=$('friendAddBtn');if(ab)ab.onclick=async()=>{const inp=$('friendCodeInput');ab.disabled=true;const r=await addByCode(inp.value);ab.disabled=false;
+      if(r.ok){inp.value='';showToast(I18N.t('friend_added'));open();}else showToast(r.msg||'❌');};
+    const fc=$('friendsClose');if(fc)fc.onclick=()=>{$('friendsScreen').classList.remove('active');DuelManager.openHub();};
+    const fb=$('duelFriendsBtn');if(fb)fb.onclick=open;
+  }
+  if(document.readyState!=='loading')setTimeout(init,0);else document.addEventListener('DOMContentLoaded',init);
+  return {open,syncProfile,myCode};
 })();
 </script>
 
