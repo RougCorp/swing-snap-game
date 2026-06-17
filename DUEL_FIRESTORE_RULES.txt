@@ -48,3 +48,43 @@ Tant que ce n'est pas fait : le jeu fonctionne quand même (les appels
 réseau échouent silencieusement → repli bot pour les duels, et la liste
 d'amis reste vide). Une fois publié, le matchmaking entre vrais joueurs
 et les amis (codes + duels async + stats V/D) s'activent.
+
+
+==================================================================
+DUELS LIVE (TEMPS RÉEL) — REALTIME DATABASE (séparé de Firestore)
+==================================================================
+
+Le duel privé "live" utilise la REALTIME DATABASE (≠ Firestore).
+
+1) Console Firebase → Realtime Database → "Créer une base de données"
+   (choisis la région ; idéalement europe-west1 comme les Functions).
+2) Copie l'URL EXACTE de la base et colle-la dans index.html → config
+   firebase → champ `databaseURL` (j'y ai mis une valeur À VÉRIFIER :
+   https://swing-and-snap-default-rtdb.europe-west1.firebasedatabase.app).
+   Si elle diffère, remplace-la par celle affichée dans la console.
+3) Onglet "Règles" de la Realtime Database → colle ceci (auth anonyme) :
+
+{
+  "rules": {
+    "duelRooms": {
+      "$code": {
+        // lisible/écrivable par tout joueur authentifié (salon éphémère
+        // à 4 chiffres ; le code fait office de "mot de passe" du salon)
+        ".read": "auth != null",
+        ".write": "auth != null",
+        ".indexOn": ["created"]
+      }
+    }
+  }
+}
+
+→ "Publier".
+
+Tant que ce n'est pas fait, le bouton "Duel privé (live)" affiche un
+message d'indisponibilité et le reste du jeu (duels async, amis, ligues)
+fonctionne normalement.
+
+NOTE (à affiner sur 2 vrais téléphones) : la comparaison du résultat se
+fait quand TON run se termine, avec le dernier score connu de l'adversaire.
+Si l'un finit nettement avant l'autre, ajuster la synchro (attendre le
+"final" adverse) — c'est un point de réglage on-device.

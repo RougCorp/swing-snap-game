@@ -470,6 +470,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 
@@ -484,7 +485,11 @@ if(!firebase.apps.length){
     projectId:         "swing-and-snap",
     storageBucket:     "swing-and-snap.firebasestorage.app",
     messagingSenderId: "548701139806",
-    appId:             "1:548701139806:web:378316cba3d9f713dd55cf"
+    appId:             "1:548701139806:web:378316cba3d9f713dd55cf",
+    // Duels temps réel (RTDB). ⚠️ À VÉRIFIER dans la console Firebase :
+    // Realtime Database → créer la base, puis coller ICI son URL exacte.
+    // (Les duels live échouent en silence et basculent en async si l'URL/la base manque.)
+    databaseURL:       "https://swing-and-snap-default-rtdb.europe-west1.firebasedatabase.app"
   });
 }
 // ==========================================
@@ -4088,6 +4093,7 @@ window.onload=()=>Game.init();
   <button class="btn btn-primary" id="duelQuickBtn">🎯 <span data-i18n="duel_quick">Match rapide</span></button>
   <button class="btn btn-secondary" id="duelFriendsBtn" style="border-color:#42A5F5;color:#1976D2">👥 <span data-i18n="duel_friends">Amis</span></button>
   <button class="btn btn-secondary" id="duelLeagueBtn" style="border-color:var(--gold);color:#C8860B">🏆 <span data-i18n="league_board">Classement Ligue</span></button>
+  <button class="btn btn-secondary" id="duelPrivateBtn" style="border-color:#26A69A;color:#00897B">📟 <span data-i18n="live_title">Duel privé (live)</span></button>
   <div id="duelHubRecord" style="font-size:.85rem;color:var(--text-light);font-weight:800;margin:8px 0"></div>
   <button class="btn btn-secondary" id="duelHubClose" data-i18n="back">RETOUR</button>
 </div>
@@ -4102,6 +4108,27 @@ window.onload=()=>Game.init();
   <div id="friendsList" style="width:100%;display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow-y:auto"></div>
   <div id="friendsEmpty" style="font-size:.82rem;color:var(--text-light);font-weight:700;margin:10px 0;display:none"></div>
   <button class="btn btn-secondary" id="friendsClose" data-i18n="back" style="margin-top:8px">RETOUR</button>
+</div>
+<!-- Private (live) duel screen -->
+<div id="privateDuelScreen" class="screen ui-element">
+  <h1 style="font-size:1.5rem">📟 <span data-i18n="live_title">Duel privé</span></h1>
+  <div id="liveIdle" style="width:100%;display:flex;flex-direction:column;gap:10px">
+    <button class="btn btn-primary" id="liveCreateBtn">➕ <span data-i18n="live_create">Créer un salon</span></button>
+    <div style="font-size:.72rem;color:var(--text-light);font-weight:700" data-i18n="live_or">— ou rejoins avec un code —</div>
+    <div style="display:flex;gap:8px;width:100%">
+      <input id="liveCodeInput" maxlength="4" inputmode="numeric" autocomplete="off" placeholder="0000" style="flex:1;min-width:0;padding:12px;border:2px solid rgba(0,0,0,.1);border-radius:14px;font-family:'Nunito',sans-serif;font-weight:900;font-size:1.3rem;text-align:center;letter-spacing:6px;background:var(--bg);color:var(--text)">
+      <button class="btn btn-primary" id="liveJoinBtn" style="width:auto;padding:12px 18px;margin:0">→</button>
+    </div>
+    <div style="font-size:.68rem;color:var(--text-light);margin-top:2px" data-i18n="live_hint">Affronte un ami en temps réel sur la même arène.</div>
+  </div>
+  <div id="liveWaiting" style="display:none;width:100%;text-align:center">
+    <div style="font-size:.72rem;color:var(--text-light);font-weight:800;letter-spacing:1px" data-i18n="live_code">CODE DU SALON</div>
+    <div id="liveCodeShow" style="font-size:2.6rem;font-weight:900;letter-spacing:10px;color:#00897B;margin:4px 0"></div>
+    <div class="duel-spinner" style="margin:12px auto"></div>
+    <div style="font-size:.85rem;font-weight:700;color:var(--text)" data-i18n="live_waiting">En attente d'un adversaire…</div>
+    <button class="btn btn-secondary" id="liveCancelBtn" style="margin-top:12px" data-i18n="duel_cancel">Annuler</button>
+  </div>
+  <button class="btn btn-secondary" id="liveClose" data-i18n="back">RETOUR</button>
 </div>
 <!-- League leaderboard screen -->
 <div id="leagueScreen" class="screen ui-element">
@@ -4201,6 +4228,7 @@ const DuelManager=(function(){
 
   // ---- construit le fantôme adverse (bot auto OU replay de taps d'un vrai joueur) ----
   function buildGhost(level,opp,oppRun){
+    if(M.live){return {traj:[{x:level[0].x+E.SIM.ropeLength,y:level[0].y,f:0}],scores:[0],score:0,perfects:0,live:true};}
     let r;
     if(oppRun&&oppRun.taps){r=E.simulateRun(level,{taps:oppRun.taps});}
     else{const sub=level.slice(0,botTarget(level.length)+1);r=E.simulateRun(sub,{auto:true});}
@@ -4217,7 +4245,7 @@ const DuelManager=(function(){
 
   // ---- physique joueur (miroir fidèle du moteur, input = tap) ----
   function stepP(P,level){const SIMc=E.SIM;const tp=level[P.targetIdx];
-    if(P.attached){P.holdFrames++;if(M._release&&P.holdFrames>=3){P.attached=false;P.holdFrames=0;P.freeFrames=0;P.vel={x:P.vel.x*SIMc.releaseBoost,y:P.vel.y*SIMc.releaseBoost};P._recordTaps.push(P._frame);}}
+    if(P.attached){P.holdFrames++;if(M._release&&P.holdFrames>=3){P.attached=false;P.holdFrames=0;P.freeFrames=0;P.vel={x:P.vel.x*SIMc.releaseBoost,y:P.vel.y*SIMc.releaseBoost};P._recordTaps.push(P._frame);if(M.onRelease)try{M.onRelease(P._frame);}catch(e){}}}
     M._release=false;P._frame++;
     const spd=E.speedFor(P.score);
     if(P.attached){P.angle+=spd;P.pos.x=P.pivot.x+Math.cos(P.angle)*SIMc.ropeLength;P.pos.y=P.pivot.y+Math.sin(P.angle)*SIMc.ropeLength;const s=spd*SIMc.ropeLength;P.vel.x=-Math.sin(P.angle)*s;P.vel.y=Math.cos(P.angle)*s;}
@@ -4281,7 +4309,7 @@ const DuelManager=(function(){
     M.ghost=buildGhost(M.level,M.opp,M.opp&&M.opp.run);
     const p0=M.level[0];
     M.P={pivot:p0,targetIdx:1,attached:true,angle:0,holdFrames:0,freeFrames:0,pos:{x:p0.x+E.SIM.ropeLength,y:p0.y},vel:{x:0,y:0},score:0,perfects:0,ended:false,finished:false,trail:[],_recordTaps:[],_frame:0};
-    M.ghostFrame=0;M.camX=p0.x;M.camY=p0.y;M._release=false;M._cd=2100;M.state='countdown';M.active=true;M._last=0;
+    M.ghostFrame=0;M.camX=p0.x;M.camY=p0.y;M._release=false;M._cd=2100;M.state='countdown';M.active=true;M._last=0;M._oppFinished=false;
     fillTag('duelYouTag',DataManager.data.playerName||'Toi',DataManager.data.currentEmblem,0);
     fillTag('duelOppTag',M.opp.name,M.opp.emblem,0);
     $('duelMatchmaking').style.display='none';$('duelResult').style.display='none';
@@ -4302,7 +4330,9 @@ const DuelManager=(function(){
     DataManager.save();
     publishRun().catch(()=>{});
     try{FriendManager.syncProfile();}catch(e){} // pousse les nouveaux points de ligue au classement
-    showResult(res,you,opp,delta);}
+    if(M.live&&M.onFinishLive)try{M.onFinishLive(M.P.score,M.P.perfects);}catch(e){}
+    showResult(res,you,opp,delta);
+    M.live=false;M.onRelease=null;M.onFinishLive=null;}
 
   function showResult(res,you,opp,delta){
     const t={win:{i:'🏆',c:'#4CAF50',k:'duel_win'},lose:{i:'💔',c:'#E53935',k:'duel_lose'},draw:{i:'🤝',c:'#FF9800',k:'duel_draw'}}[res];
@@ -4332,7 +4362,7 @@ const DuelManager=(function(){
     }catch(e){}
     return null;}
 
-  function openMatchmaking(){ensureData();
+  function openMatchmaking(){ensureData();M.live=false;
     document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
     $('duelMatchmaking').style.display='flex';$('duelMmText').textContent=I18N.t('duel_searching');
     M._mmStart=Date.now();M.state='matchmaking';
@@ -4347,15 +4377,25 @@ const DuelManager=(function(){
   function startBot(){clearInterval(M._mmTimer);M.state='matchmaking';M.opp=makeBot();M.seed=(Date.now()^(Math.random()*1e9))>>>0;$('duelMmText').textContent=I18N.t('duel_found');setTimeout(startPlay,500);}
 
   // Défier un ami : on rejoue son DERNIER run publié (vrai duel async) ; à défaut, un bot calibré à sa ligue, étiqueté à son nom (le H2H compte car opp.uid est défini).
-  async function challengeFriend(friend){ensureData();
+  async function challengeFriend(friend){ensureData();M.live=false;
     let run=null,seed=(Date.now()^(Math.random()*1e9))>>>0;
     try{const LB=(typeof WeeklyLeaderboard!=='undefined')?WeeklyLeaderboard:null;const db=LB&&LB._db;if(db&&friend.uid){const doc=await db.collection('duelQueue').doc(friend.uid).get();if(doc.exists){const v=doc.data();if(v.run&&v.seed!=null){run=v.run;seed=v.seed;}}}}catch(e){}
     M.opp={name:friend.name,emblem:friend.emblem||'classic',uid:friend.uid,leaguePoints:friend.leaguePoints||0,isBot:!run,run};
     M.seed=seed;$('duelMatchmaking').style.display='none';startPlay();}
 
+  // ---- DUELS LIVE (RTDB) : fantôme piloté par les taps reçus en temps réel ----
+  function startLive(seed,opp,opts){opts=opts||{};M.live=true;M.onRelease=opts.onRelease||null;M.onFinishLive=opts.onFinish||null;M._onQuitLive=opts.onQuit||null;M.liveOppTaps=[];M.opp=opp;M.seed=seed;
+    $('duelMatchmaking').style.display='none';startPlay();}
+  // Reconstruit le fantôme adverse à partir de ses taps connus (déterministe) → position/score live exacts.
+  function setLiveOppTaps(taps){if(!M.live||!M.level||!M.ghost)return;M.liveOppTaps=(taps||[]).slice();
+    try{const r=E.simulateRun(M.level,{taps:M.liveOppTaps});let sc=0,ti=1;const scores=[];
+      for(const pt of r.traj){if(ti<M.level.length){const tp=M.level[ti];if(Math.hypot(pt.x-tp.x,pt.y-tp.y)<E.SIM.snapRadius){sc++;ti++;}}scores.push(sc);}
+      M.ghost.traj=r.traj;M.ghost.scores=scores;if((M.ghost.score||0)<sc)M.ghost.score=sc;M.ghost.perfects=r.perfects;}catch(e){}}
+  function setOppFinal(score,perfects){if(M.ghost){if(score!=null)M.ghost.score=score;if(perfects!=null)M.ghost.perfects=perfects;}M._oppFinished=true;}
+
   function cancelMatchmaking(){clearInterval(M._mmTimer);M.state='idle';$('duelMatchmaking').style.display='none';openHub();}
 
-  function quit(){M.active=false;cancelAnimationFrame(M.raf);M.state='idle';$('duelCanvas').style.display='none';$('duelHud').style.display='none';$('duelQuitBtn').style.display='none';$('duelResult').style.display='none';openHub();}
+  function quit(){M.active=false;cancelAnimationFrame(M.raf);M.state='idle';if(M.live&&M._onQuitLive)try{M._onQuitLive();}catch(e){}M.live=false;M.onRelease=null;M.onFinishLive=null;M._onQuitLive=null;$('duelCanvas').style.display='none';$('duelHud').style.display='none';$('duelQuitBtn').style.display='none';$('duelResult').style.display='none';openHub();}
 
   function openHub(){ensureData();try{FriendManager.syncProfile();}catch(e){}document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$('duelHub').classList.add('active');
     const d=DataManager.data;const tier=tierFor(d.leaguePoints);const nt=nextTier(d.leaguePoints);
@@ -4389,7 +4429,7 @@ const DuelManager=(function(){
     window.addEventListener('resize',()=>{if(M.active)mount();});
   }
   if(document.readyState!=='loading')setTimeout(init,0);else document.addEventListener('DOMContentLoaded',init);
-  return {openHub,openMatchmaking,challengeFriend,tierFor,TIERS,_M:M};
+  return {openHub,openMatchmaking,challengeFriend,startLive,setLiveOppTaps,setOppFinal,tierFor,TIERS,_M:M};
 })();
 
 /* ===== FriendManager : amis (codes + liste + duels entre amis + H2H) ===== */
@@ -4514,6 +4554,77 @@ const LeagueBoard=(function(){
   }
   if(document.readyState!=='loading')setTimeout(init,0);else document.addEventListener('DOMContentLoaded',init);
   return {open};
+})();
+
+/* ===== LiveDuel : duels temps réel via RTDB (salon 4 chiffres + échange de taps) =====
+   ⚠️ NÉCESSITE : Realtime Database activée + databaseURL correcte (voir config en haut).
+   Non testable en sandbox (2 appareils requis). Repli gracieux : si RTDB indisponible,
+   message + retour ; les duels async (bot/amis) restent disponibles. */
+const LiveDuel=(function(){
+  function rtdb(){try{if(typeof firebase==='undefined'||!firebase.database)return null;return firebase.database();}catch(e){return null;}}
+  function uid(){const LB=(typeof WeeklyLeaderboard!=='undefined')?WeeklyLeaderboard:null;return LB&&LB._uid;}
+  function myProfile(){const d=DataManager.data;return {uid:uid(),name:(d.playerName||'Joueur').slice(0,20),emblem:d.currentEmblem||'classic',leaguePoints:d.leaguePoints||0};}
+  let S={code:null,role:null,roomRef:null,oppUid:null,started:false,listeners:[]};
+
+  function detach(){S.listeners.forEach(l=>{try{l.ref.off(l.ev,l.cb);}catch(e){}});S.listeners=[];}
+  function cleanup(removeRoom){detach();if(removeRoom&&S.roomRef&&S.role==='host'){try{S.roomRef.remove();}catch(e){}}S={code:null,role:null,roomRef:null,oppUid:null,started:false,listeners:[]};}
+  function watch(ref,ev,cb){ref.on(ev,cb);S.listeners.push({ref,ev,cb});}
+
+  function beginDuel(seed,opp){if(S.started)return;S.started=true;
+    $('privateDuelScreen').classList.remove('active');
+    // écoute les taps + le score final de l'adversaire
+    if(S.oppUid){
+      watch(S.roomRef.child('taps/'+S.oppUid),'value',snap=>{const v=snap.val()||{};const arr=Object.keys(v).map(k=>Number(v[k])).filter(n=>!isNaN(n)).sort((a,b)=>a-b);DuelManager.setLiveOppTaps(arr);});
+      watch(S.roomRef.child('final/'+S.oppUid),'value',snap=>{const v=snap.val();if(v)DuelManager.setOppFinal(v.score,v.perfects);});
+    }
+    DuelManager.startLive(seed,opp,{
+      onRelease:(frame)=>{try{S.roomRef.child('taps/'+uid()).push(frame);}catch(e){}},
+      onFinish:(score,perfects)=>{try{S.roomRef.child('final/'+uid()).set({score,perfects});}catch(e){}},
+      onQuit:()=>{cleanup(true);}
+    });}
+
+  async function create(){const db=rtdb(),u=uid();if(!db||!u){showToast(I18N.t('live_offline'));return;}
+    cleanup(true);
+    const code=String(1000+Math.floor(Math.random()*9000));
+    const seed=(Date.now()^(Math.random()*1e9))>>>0;
+    S.code=code;S.role='host';S.roomRef=db.ref('duelRooms/'+code);
+    try{await S.roomRef.set({host:myProfile(),seed,state:'waiting',created:firebase.database.ServerValue.TIMESTAMP});}
+    catch(e){showToast(I18N.t('live_offline'));cleanup(false);return;}
+    showWaiting(code);
+    watch(S.roomRef.child('guest'),'value',snap=>{const g=snap.val();if(g&&g.uid&&g.uid!==u&&!S.started){S.oppUid=g.uid;beginDuel(seed,{name:g.name,emblem:g.emblem,uid:g.uid,leaguePoints:g.leaguePoints||0});}});}
+
+  async function join(codeRaw){const db=rtdb(),u=uid();if(!db||!u){showToast(I18N.t('live_offline'));return;}
+    const code=(codeRaw||'').trim();if(!/^\d{4}$/.test(code)){showToast(I18N.t('live_bad_code'));return;}
+    cleanup(false);S.roomRef=db.ref('duelRooms/'+code);
+    let room;try{const snap=await S.roomRef.get();room=snap.val();}catch(e){showToast(I18N.t('live_offline'));return;}
+    if(!room||!room.host){showToast(I18N.t('live_notfound'));cleanup(false);return;}
+    if(room.host.uid===u){showToast(I18N.t('live_self'));cleanup(false);return;}
+    if(room.guest&&room.guest.uid&&room.guest.uid!==u){showToast(I18N.t('live_full'));cleanup(false);return;}
+    S.code=code;S.role='guest';S.oppUid=room.host.uid;
+    try{await S.roomRef.child('guest').set(myProfile());await S.roomRef.child('state').set('playing');}
+    catch(e){showToast(I18N.t('live_offline'));cleanup(false);return;}
+    beginDuel(room.seed,{name:room.host.name,emblem:room.host.emblem,uid:room.host.uid,leaguePoints:room.host.leaguePoints||0});}
+
+  function showWaiting(code){$('liveIdle').style.display='none';$('liveWaiting').style.display='block';$('liveCodeShow').textContent=code;}
+  function showIdle(){$('liveWaiting').style.display='none';$('liveIdle').style.display='flex';const i=$('liveCodeInput');if(i)i.value='';}
+  function open(){cleanup(true);document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$('privateDuelScreen').classList.add('active');showIdle();
+    if(!rtdb())showToast(I18N.t('live_offline'));}
+
+  if(typeof I18N!=='undefined'&&I18N.L){
+    Object.assign(I18N.L.fr,{live_title:'Duel privé (live)',live_create:'Créer un salon',live_or:'— ou rejoins avec un code —',live_code:'CODE DU SALON',live_waiting:'En attente d\'un adversaire…',live_hint:'Affronte un ami en temps réel sur la même arène.',live_offline:'Duel live indisponible (connexion / base temps réel)',live_bad_code:'Code à 4 chiffres',live_notfound:'Salon introuvable',live_full:'Salon déjà complet',live_self:'C\'est ton propre salon 😅'});
+    Object.assign(I18N.L.en,{live_title:'Private duel (live)',live_create:'Create a room',live_or:'— or join with a code —',live_code:'ROOM CODE',live_waiting:'Waiting for an opponent…',live_hint:'Face a friend in real time on the same arena.',live_offline:'Live duel unavailable (connection / realtime DB)',live_bad_code:'4-digit code',live_notfound:'Room not found',live_full:'Room already full',live_self:'That\'s your own room 😅'});
+  }
+
+  function init(){
+    const ui=$('uiLayer'),ps=$('privateDuelScreen');if(ui&&ps)ui.appendChild(ps);
+    const pb=$('duelPrivateBtn');if(pb)pb.onclick=open;
+    const cb=$('liveCreateBtn');if(cb)cb.onclick=create;
+    const jb=$('liveJoinBtn');if(jb)jb.onclick=()=>join($('liveCodeInput').value);
+    const cc=$('liveCancelBtn');if(cc)cc.onclick=()=>{cleanup(true);showIdle();};
+    const lc=$('liveClose');if(lc)lc.onclick=()=>{cleanup(true);$('privateDuelScreen').classList.remove('active');DuelManager.openHub();};
+  }
+  if(document.readyState!=='loading')setTimeout(init,0);else document.addEventListener('DOMContentLoaded',init);
+  return {open,create,join};
 })();
 </script>
 
