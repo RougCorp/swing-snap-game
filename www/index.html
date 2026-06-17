@@ -4265,8 +4265,14 @@ const DuelManager=(function(){
   let _flashT=0;function flash(){const f=$('duelFlash');f.style.opacity='1';_flashT=18;}
 
   function render(now){const c=M.ctx;if(!c)return;const w=M.cssW,h=M.cssH;
-    // caméra (suit le joueur)
-    M.camX+=(M.P.pos.x-M.camX)*0.12;M.camY+=(M.P.pos.y-M.camY)*0.14;
+    // caméra : cadrage serré sur le MILIEU (balle ↔ prochaine cible) → on voit
+    // toujours où aller, comme le vrai jeu. Zoom = ~620 px virtuels de haut.
+    const VIS_VH=620;M.scale=h/VIS_VH;const visVW=w/M.scale;
+    const tp0=M.level[M.P.targetIdx];
+    const fx=tp0?(M.P.pos.x+tp0.x)/2:M.P.pos.x, fy=tp0?(M.P.pos.y+tp0.y)/2:M.P.pos.y;
+    M.camY+=(fy-M.camY)*0.12;M.camY=Math.max(VIS_VH/2,Math.min(E.DUEL_VH-VIS_VH/2,M.camY));
+    if(visVW>=E.DUEL_VW){M.camX=E.DUEL_VW/2;} // écran large : on centre l'arène (pas de vide latéral)
+    else{M.camX+=(fx-M.camX)*0.12;M.camX=Math.max(visVW/2,Math.min(E.DUEL_VW-visVW/2,M.camX));}
     c.clearRect(0,0,w,h);
     // fond = skin de fond courant + polish + voile sombre pour le contraste
     try{const bg=(Game.player.bgSkins||{})[DataManager.data.currentBg];if(bg){bg.draw(c,w,h);if(typeof bgPolish==='function')bgPolish(c,w,h,(typeof DARK_BGS!=='undefined'?DARK_BGS:[]).includes(DataManager.data.currentBg));}}catch(e){c.fillStyle='#15102a';c.fillRect(0,0,w,h);}
