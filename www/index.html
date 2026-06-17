@@ -3475,6 +3475,17 @@ list.appendChild(card);
 }
 function renderProgressionGroup(list){renderTieredGroup(PROG_MISSION_DEFS,list);}
 
+// Un pack cosmétique est "possédé" dès que TOUT son contenu est déjà débloqué
+// (peu importe la source : ce pack, un autre pack, gemmes, missions…).
+// Évite de proposer/racheter des skins qu'on a déjà — c'est inutile.
+function packContentOwned(it){
+const d=DataManager.data;
+const arr={ball:d.skins,trail:d.trails,bg:d.backgrounds,emblem:d.emblems,banner:d.banners}[it.type];
+return !!(arr&&arr.includes(it.id));
+}
+function packFullyOwned(pack){
+return pack.type==='skin'&&pack.content&&pack.content.length&&pack.content.every(packContentOwned);
+}
 function renderPacks(){
 updatePuShopStock();updateAdRouletteUI();
 const c=$('packsList');c.innerHTML='';
@@ -3482,9 +3493,11 @@ PACKS.forEach(pack=>{
 const div=document.createElement('div');div.className='pack-card';
 let icon='📦';if(pack.type==='gems')icon='<span class="gem-i"></span>';if(pack.id==='noads')icon='🚫';if(pack.id==='nature')icon='🌿';if(pack.id==='cosmic')icon='🌌';
 let btn=(typeof IAP!=='undefined'&&IAP.getPrice)?IAP.getPrice(pack.id):(pack.price+'€');
-// isOwned: check local data first, then ask native store as fallback (covers restored purchases)
+// isOwned: check local data first, then ask native store as fallback (covers restored purchases),
+// and treat a pack whose whole content is already unlocked as owned (no double-buy).
 let isOwned=(pack.id==='noads'&&DataManager.data.noAds)
   ||(pack.type==='skin'&&DataManager.data.unlockedPacks&&DataManager.data.unlockedPacks.includes(pack.id))
+  ||packFullyOwned(pack)
   ||(pack.type!=='gems'&&typeof IAP!=='undefined'&&IAP.isOwned&&IAP.isOwned(pack.id));
 const packName=pack.nameKey?I18N.t(pack.nameKey):pack.name;
 const _icoByType={ball:'⚪',trail:'〰️',bg:'🖼️',emblem:'🎖️',banner:'🏳️'};
@@ -3547,7 +3560,9 @@ wrap.appendChild(nm);
 const tag=document.createElement('div');
 tag.style.cssText='font-size:.55rem;color:var(--text-light);opacity:.7';
 const tagKey={ball:'balls',trail:'trails',bg:'backgrounds',emblem:'emblems',banner:'banners'}[it.type];
-tag.textContent=I18N.t(tagKey);
+// Indique si l'item est déjà débloqué (recouvrement partiel d'un pack).
+if(typeof packContentOwned==='function'&&packContentOwned(it)){tag.textContent=I18N.t('unlock_done');tag.style.color='var(--success,#4caf50)';tag.style.opacity='1';tag.style.fontWeight='800';}
+else tag.textContent=I18N.t(tagKey);
 wrap.appendChild(tag);
 return wrap;
 }
