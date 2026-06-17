@@ -4087,6 +4087,7 @@ window.onload=()=>Game.init();
   <div id="duelHubLeague" style="background:linear-gradient(135deg,rgba(142,99,180,.12),rgba(244,169,38,.12));border:2px solid rgba(142,99,180,.25);border-radius:18px;padding:14px 16px;margin-bottom:14px;width:100%;box-sizing:border-box"></div>
   <button class="btn btn-primary" id="duelQuickBtn">🎯 <span data-i18n="duel_quick">Match rapide</span></button>
   <button class="btn btn-secondary" id="duelFriendsBtn" style="border-color:#42A5F5;color:#1976D2">👥 <span data-i18n="duel_friends">Amis</span></button>
+  <button class="btn btn-secondary" id="duelLeagueBtn" style="border-color:var(--gold);color:#C8860B">🏆 <span data-i18n="league_board">Classement Ligue</span></button>
   <div id="duelHubRecord" style="font-size:.85rem;color:var(--text-light);font-weight:800;margin:8px 0"></div>
   <button class="btn btn-secondary" id="duelHubClose" data-i18n="back">RETOUR</button>
 </div>
@@ -4101,6 +4102,14 @@ window.onload=()=>Game.init();
   <div id="friendsList" style="width:100%;display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow-y:auto"></div>
   <div id="friendsEmpty" style="font-size:.82rem;color:var(--text-light);font-weight:700;margin:10px 0;display:none"></div>
   <button class="btn btn-secondary" id="friendsClose" data-i18n="back" style="margin-top:8px">RETOUR</button>
+</div>
+<!-- League leaderboard screen -->
+<div id="leagueScreen" class="screen ui-element">
+  <h1 style="font-size:1.6rem">🏆 <span data-i18n="league_board">Classement Ligue</span></h1>
+  <div id="leagueSub" style="font-size:.72rem;color:var(--text-light);font-weight:700;margin-bottom:8px"></div>
+  <div id="leagueList" style="width:100%;display:flex;flex-direction:column;gap:6px;max-height:52vh;overflow-y:auto"></div>
+  <div id="leagueMine" style="width:100%;margin-top:8px"></div>
+  <button class="btn btn-secondary" id="leagueClose" data-i18n="back" style="margin-top:8px">RETOUR</button>
 </div>
 
 <script>
@@ -4292,6 +4301,7 @@ const DuelManager=(function(){
     if(M.opp&&M.opp.uid){const h=d.h2h[M.opp.uid]||{name:M.opp.name,w:0,l:0,d:0};if(res==='win')h.w++;else if(res==='lose')h.l++;else h.d++;h.name=M.opp.name;d.h2h[M.opp.uid]=h;}
     DataManager.save();
     publishRun().catch(()=>{});
+    try{FriendManager.syncProfile();}catch(e){} // pousse les nouveaux points de ligue au classement
     showResult(res,you,opp,delta);}
 
   function showResult(res,you,opp,delta){
@@ -4379,7 +4389,7 @@ const DuelManager=(function(){
     window.addEventListener('resize',()=>{if(M.active)mount();});
   }
   if(document.readyState!=='loading')setTimeout(init,0);else document.addEventListener('DOMContentLoaded',init);
-  return {openHub,openMatchmaking,challengeFriend,_M:M};
+  return {openHub,openMatchmaking,challengeFriend,tierFor,TIERS,_M:M};
 })();
 
 /* ===== FriendManager : amis (codes + liste + duels entre amis + H2H) ===== */
@@ -4391,7 +4401,7 @@ const FriendManager=(function(){
   function myCode(){const u=uid();return u?codeFromUid(u):'------';}
 
   async function syncProfile(){try{const d=db(),u=uid();if(!d||!u)return;const dd=DataManager.data;const code=codeFromUid(u);
-    await d.collection('duelProfiles').doc(u).set({name:(dd.playerName||'Joueur').slice(0,20),emblem:dd.currentEmblem||'classic',banner:dd.currentBanner||'classic',leaguePoints:dd.leaguePoints||0,code,ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    await d.collection('duelProfiles').doc(u).set({name:(dd.playerName||'Joueur').slice(0,20),emblem:dd.currentEmblem||'classic',banner:dd.currentBanner||'classic',leaguePoints:dd.leaguePoints||0,leaguePeriod:dd.leaguePeriod||0,code,ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
     await d.collection('friendCodes').doc(code).set({uid:u},{merge:true});}catch(e){}}
 
   async function addByCode(codeRaw){const code=(codeRaw||'').trim().toUpperCase();if(code.length!==6)return {ok:false,msg:I18N.t('friend_bad_code')};
@@ -4449,6 +4459,61 @@ const FriendManager=(function(){
   }
   if(document.readyState!=='loading')setTimeout(init,0);else document.addEventListener('DOMContentLoaded',init);
   return {open,syncProfile,myCode};
+})();
+
+/* ===== LeagueBoard : classement de ligue (points, période 2 semaines) ===== */
+const LeagueBoard=(function(){
+  function db(){const LB=(typeof WeeklyLeaderboard!=='undefined')?WeeklyLeaderboard:null;return LB&&LB._db;}
+  function uid(){const LB=(typeof WeeklyLeaderboard!=='undefined')?WeeklyLeaderboard:null;return LB&&LB._uid;}
+  function tierFor(pts){try{return DuelManager.tierFor(pts);}catch(e){return {name:'Bronze',color:'#CD7F32'};}}
+  function daysLeft(){const period=Math.floor(Date.now()/(14*864e5));const end=(period+1)*14*864e5;return Math.max(0,Math.ceil((end-Date.now())/864e5));}
+
+  function embCanvas(embId,size){const cv=document.createElement('canvas');try{const EM=(typeof EMBLEMS!=='undefined'?EMBLEMS:{});const emb=EM[embId]||EM.classic;const dpr=window.devicePixelRatio||1;cv.width=size*dpr;cv.height=size*dpr;cv.style.cssText='width:'+size+'px;height:'+size+'px;background:rgba(255,255,255,.9);border-radius:50%;flex-shrink:0';const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.translate(size/2,size/2);c.scale(size/30,size/30);if(emb){c.fillStyle=emb.color;emb.draw(c);}}catch(e){}return cv;}
+
+  function row(rank,p,isMe){const r=document.createElement('div');
+    r.style.cssText='display:flex;align-items:center;gap:9px;border-radius:13px;padding:7px 10px;'+(isMe?'background:linear-gradient(135deg,rgba(142,99,180,.16),rgba(244,169,38,.16));border:2px solid rgba(142,99,180,.4)':'background:var(--card);box-shadow:0 2px 7px rgba(0,0,0,.05)');
+    const medal=rank<=3?['🥇','🥈','🥉'][rank-1]:('#'+rank);
+    const rk=document.createElement('div');rk.style.cssText='font-weight:900;font-size:'+(rank<=3?'1.2rem':'.85rem')+';color:var(--text-light);min-width:28px;text-align:center';rk.textContent=medal;r.appendChild(rk);
+    r.appendChild(embCanvas(p.emblem,34));
+    const info=document.createElement('div');info.style.cssText='flex:1;min-width:0';
+    const t=tierFor(p.leaguePoints||0);
+    info.innerHTML='<div style="font-weight:900;font-size:.88rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(p.name||'Joueur')+(isMe?' <span style="color:var(--accent)">('+I18N.t('league_you')+')</span>':'')+'</div><div style="font-size:.68rem;font-weight:800;color:'+t.color+'">'+t.name+'</div>';
+    r.appendChild(info);
+    const pts=document.createElement('div');pts.style.cssText='font-weight:900;font-size:1rem;color:var(--text);font-variant-numeric:tabular-nums';pts.innerHTML=(p.leaguePoints||0)+' <span style="font-size:.62rem;opacity:.6">pts</span>';r.appendChild(pts);
+    return r;}
+
+  async function open(){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$('leagueScreen').classList.add('active');
+    try{FriendManager.syncProfile();}catch(e){}
+    $('leagueSub').textContent=I18N.t('league_resets',daysLeft());
+    const list=$('leagueList');list.innerHTML='<div style="text-align:center;color:var(--text-light);font-size:.8rem;padding:14px">…</div>';
+    $('leagueMine').innerHTML='';
+    const d=db(),u=uid();const dd=DataManager.data;
+    let players=[];
+    if(d){try{const snap=await d.collection('duelProfiles').orderBy('leaguePoints','desc').limit(50).get();snap.forEach(doc=>{const v=doc.data();players.push({uid:doc.id,name:v.name,emblem:v.emblem||'classic',leaguePoints:v.leaguePoints||0});});}catch(e){}}
+    list.innerHTML='';
+    if(!players.length){
+      // hors-ligne / pas encore de données : on s'affiche au moins soi-même
+      const me={uid:u,name:dd.playerName||'Toi',emblem:dd.currentEmblem||'classic',leaguePoints:dd.leaguePoints||0};
+      list.appendChild(row(1,me,true));
+      const note=document.createElement('div');note.style.cssText='font-size:.74rem;color:var(--text-light);font-weight:700;text-align:center;margin-top:8px';note.textContent=I18N.t('league_offline');list.appendChild(note);
+      return;
+    }
+    let myRank=-1;players.forEach((p,i)=>{if(p.uid===u)myRank=i+1;list.appendChild(row(i+1,p,p.uid===u));});
+    if(myRank===-1){const mine=$('leagueMine');mine.innerHTML='<div style="font-size:.72rem;color:var(--text-light);font-weight:800;text-align:center;margin-bottom:4px">'+I18N.t('league_your_rank')+'</div>';mine.appendChild(row(I18N.t('league_unranked'),{name:dd.playerName||'Toi',emblem:dd.currentEmblem||'classic',leaguePoints:dd.leaguePoints||0},true));}
+  }
+
+  if(typeof I18N!=='undefined'&&I18N.L){
+    Object.assign(I18N.L.fr,{league_board:'Classement Ligue',league_you:'toi',league_resets:'Réinitialisation dans {0} jour(s)',league_offline:'Connexion requise pour voir le classement mondial',league_your_rank:'Ton rang',league_unranked:'—'});
+    Object.assign(I18N.L.en,{league_board:'League Ranking',league_you:'you',league_resets:'Resets in {0} day(s)',league_offline:'Connection required for the global ranking',league_your_rank:'Your rank',league_unranked:'—'});
+  }
+
+  function init(){
+    const ui=$('uiLayer'),ls=$('leagueScreen');if(ui&&ls)ui.appendChild(ls);
+    const b=$('duelLeagueBtn');if(b)b.onclick=open;
+    const c=$('leagueClose');if(c)c.onclick=()=>{$('leagueScreen').classList.remove('active');DuelManager.openHub();};
+  }
+  if(document.readyState!=='loading')setTimeout(init,0);else document.addEventListener('DOMContentLoaded',init);
+  return {open};
 })();
 </script>
 
