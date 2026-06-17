@@ -185,6 +185,16 @@ input[type=range]{-webkit-appearance:none;width:100%;height:8px;background:rgba(
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;background:var(--accent);border-radius:50%;cursor:pointer;box-shadow:0 0 10px rgba(142, 99, 180, 0.4)}
 .privacy-links{display:flex;flex-direction:column;gap:10px;margin-top:15px}
 .privacy-btn{background:none;border:none;color:var(--text-light);text-decoration:underline;font-size:0.85rem;padding:8px;cursor:pointer;text-align:left;width:100%;border-radius:8px}
+/* ===== Duel ===== */
+.duel-tag{display:flex;align-items:center;gap:7px;background:rgba(0,0,0,.4);backdrop-filter:blur(4px);border-radius:14px;padding:5px 10px 5px 6px;min-width:0;max-width:42%;box-shadow:0 2px 10px rgba(0,0,0,.3)}
+.duel-tag-r{flex-direction:row-reverse;padding:5px 6px 5px 10px}
+.duel-tag .duel-emb-c{flex-shrink:0;background:rgba(255,255,255,.92);border-radius:50%}
+.duel-tag-info{min-width:0;line-height:1.1}
+.duel-tag-r .duel-tag-info{text-align:right}
+.duel-tag .duel-name{font-size:.74rem;font-weight:800;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:96px}
+.duel-tag .duel-score{font-size:1.25rem;font-weight:900;color:#FFD54F;font-variant-numeric:tabular-nums}
+.duel-spinner{width:52px;height:52px;border:5px solid rgba(255,255,255,.18);border-top-color:#CE93D8;border-radius:50%;animation:duelSpin .8s linear infinite}
+@keyframes duelSpin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -211,6 +221,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 <button class="btn btn-secondary" id="btnCampaign" style="border-color:var(--accent);color:var(--accent)"><span data-i18n="campaign">CAMPAGNE</span></button>
 <button class="btn btn-secondary" id="btnTimeAttack" style="border-color:#E53935;color:#E53935">⚡ BLITZ <span id="taMenuBest" style="font-size:.75em;opacity:.7"></span></button>
 <button class="btn btn-secondary" id="btnLeaderboard" style="border-color:var(--gold);color:var(--gold)">🏆 <span data-i18n="leaderboard_btn">LEADERBOARD</span></button>
+<button class="btn btn-secondary" id="btnDuel" style="border-color:#7E57C2;color:#6A4C93">⚔️ <span data-i18n="duel_menu_btn">DUELS</span></button>
 <button class="btn btn-secondary" id="btnShop" style="border-color:#159788;color:#0f8074">🎨 <span data-i18n="shop">COLLECTION</span></button>
 <button class="btn btn-secondary" id="btnMissions" style="position:relative;overflow:visible;border-color:#FB8C00;color:#E07B00">🎯 <span data-i18n="missions">MISSIONS</span><span id="missionDot" class="mission-dot"></span></button>
 <button class="btn btn-secondary" id="btnIAP" style="border-color:#D81B60;color:#C2185B">🛍️ <span data-i18n="packs">BOUTIQUE</span></button>
@@ -4034,6 +4045,322 @@ if ('serviceWorker' in navigator) {
 
 window.onload=()=>Game.init();
 </script>
+
+<!-- ============================== DUEL MODE ============================== -->
+<canvas id="duelCanvas" style="display:none;position:fixed;inset:0;width:100%;height:100%;z-index:90;touch-action:none"></canvas>
+<div id="duelHud" style="display:none;position:fixed;inset:0;z-index:95;pointer-events:none">
+  <div style="position:absolute;top:calc(env(safe-area-inset-top, 0px) + 10px);left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:0 12px;gap:8px">
+    <div class="duel-tag" id="duelYouTag"></div>
+    <div style="color:#fff;font-weight:900;font-size:1.1rem;text-shadow:0 2px 8px #000;flex-shrink:0">VS</div>
+    <div class="duel-tag duel-tag-r" id="duelOppTag"></div>
+  </div>
+  <div id="duelProgress" style="position:absolute;top:calc(env(safe-area-inset-top, 0px) + 66px);left:0;right:0;text-align:center;color:#fff;font-weight:800;font-size:.78rem;text-shadow:0 1px 4px #000;opacity:.9"></div>
+  <button id="duelQuitBtn" class="ui-element" style="pointer-events:auto;position:absolute;top:calc(env(safe-area-inset-top, 0px) + 8px);right:50%;transform:translateX(50%);margin-top:88px;background:rgba(0,0,0,.35);color:#fff;border:none;border-radius:14px;width:34px;height:34px;font-size:1.1rem;cursor:pointer;display:none">✕</button>
+  <div id="duelCountdown" style="position:absolute;inset:0;display:none;align-items:center;justify-content:center;font-size:6rem;font-weight:900;color:#fff;text-shadow:0 6px 30px rgba(0,0,0,.7);letter-spacing:2px"></div>
+  <div id="duelFlash" style="position:absolute;top:38%;left:0;right:0;text-align:center;font-size:1.6rem;font-weight:900;color:#FFD54F;text-shadow:0 2px 14px rgba(0,0,0,.8);opacity:0;transition:opacity .15s;pointer-events:none">PERFECT!</div>
+</div>
+<!-- Matchmaking overlay -->
+<div id="duelMatchmaking" style="display:none;position:fixed;inset:0;z-index:310;background:linear-gradient(160deg,#1b1030,#0c0818);flex-direction:column;align-items:center;justify-content:center;gap:16px;color:#fff;text-align:center;padding:24px;box-sizing:border-box">
+  <div style="font-size:1.5rem;font-weight:900;letter-spacing:2px">⚔️ <span data-i18n="duel_title">DUEL</span></div>
+  <div class="duel-spinner"></div>
+  <div id="duelMmText" style="font-size:1.05rem;font-weight:800"></div>
+  <div id="duelMmTimer" style="font-size:.85rem;opacity:.65;font-variant-numeric:tabular-nums"></div>
+  <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:280px;margin-top:8px">
+    <button id="duelMmBot" class="btn btn-primary">🤖 <span data-i18n="duel_play_bot">Jouer contre un bot</span></button>
+    <button id="duelMmCancel" class="btn btn-secondary" data-i18n="duel_cancel">Annuler</button>
+  </div>
+</div>
+<!-- Duel result -->
+<div id="duelResult" style="display:none;position:fixed;inset:0;z-index:320;background:rgba(0,0,0,.72);backdrop-filter:blur(8px);align-items:center;justify-content:center;pointer-events:auto;padding:20px;box-sizing:border-box">
+  <div style="background:var(--card);border-radius:24px;padding:26px 22px;max-width:340px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+    <div id="duelResultIcon" style="font-size:3rem;line-height:1">🏆</div>
+    <div id="duelResultTitle" style="font-size:1.55rem;font-weight:900;color:var(--text);margin:2px 0 14px"></div>
+    <div id="duelResultScores" style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:14px"></div>
+    <div id="duelResultLeague" style="font-size:.9rem;font-weight:800;margin-bottom:18px;min-height:20px"></div>
+    <button id="duelResultReplay" class="btn btn-primary" style="width:100%;margin-bottom:8px">🔄 <span data-i18n="duel_rematch">Revanche</span></button>
+    <button id="duelResultMenu" class="btn btn-secondary" style="width:100%" data-i18n="menu">MENU</button>
+  </div>
+</div>
+<!-- Duel hub (entry: quick match / league standing) -->
+<div id="duelHub" class="screen ui-element">
+  <h1 style="font-size:2rem">⚔️ <span data-i18n="duel_title">DUEL</span></h1>
+  <div id="duelHubLeague" style="background:linear-gradient(135deg,rgba(142,99,180,.12),rgba(244,169,38,.12));border:2px solid rgba(142,99,180,.25);border-radius:18px;padding:14px 16px;margin-bottom:14px;width:100%;box-sizing:border-box"></div>
+  <button class="btn btn-primary" id="duelQuickBtn">🎯 <span data-i18n="duel_quick">Match rapide</span></button>
+  <div id="duelHubRecord" style="font-size:.85rem;color:var(--text-light);font-weight:800;margin:8px 0"></div>
+  <button class="btn btn-secondary" id="duelHubClose" data-i18n="back">RETOUR</button>
+</div>
+
+<script>
+/* ===== Duel Engine (déterministe, terrain virtuel fixe) — inline ===== */
+(function(){
+  const DUEL_VW=440,DUEL_VH=950;
+  const DUEL_CFG={margin:60,snapRadius:90,minPivotDist:220,maxPivotDist:450,pivotDistCap:550,gemSpawnChance:.25,gemMaxPerScreen:4};
+  function makeRng(seed){let s=seed>>>0;return function(){s=(s+0x6D2B79F5)|0;let t=Math.imul(s^(s>>>15),1|s);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
+  function generateDuelLevel(seed,pivotCount){
+    const C=DUEL_CFG,rng=makeRng(seed),pivots=[];
+    function pivotDistance(score){const range=C.maxPivotDist-C.minPivotDist;const scaled=Math.min(range+score*1.5,C.pivotDistCap-C.minPivotDist);return C.minPivotDist+rng()*scaled;}
+    for(let i=0;i<pivotCount;i++){
+      let x,y;
+      if(i===0){x=DUEL_VW/2;y=DUEL_VH/2;}
+      else{
+        const last=pivots[i-1];const dist=pivotDistance(i);let valid=false,att=0;
+        while(!valid&&att<100){att++;const a=rng()*6.28;const d=dist*(0.8+rng()*0.4);x=last.x+Math.cos(a)*d;y=last.y+Math.sin(a)*d;
+          if(x>C.margin&&x<DUEL_VW-C.margin&&y>C.margin&&y<DUEL_VH-C.margin){let ok=true;for(const p of pivots.slice(-2)){if(Math.hypot(x-p.x,y-p.y)<C.minPivotDist){ok=false;break;}}if(ok)valid=true;}}
+        if(!valid){const lp=pivots[i-1];const ang=Math.atan2(DUEL_VH/2-lp.y,DUEL_VW/2-lp.x)+(rng()-0.5)*1.2;const d=C.minPivotDist*1.15;x=Math.max(C.margin,Math.min(DUEL_VW-C.margin,lp.x+Math.cos(ang)*d));y=Math.max(C.margin,Math.min(DUEL_VH-C.margin,lp.y+Math.sin(ang)*d));}
+      }
+      let coneAngle=0;if(i>0){const last=pivots[i-1];coneAngle=Math.atan2(last.y-y,last.x-x);}
+      pivots.push({x,y,coneAngle,obstacle:null});
+    }
+    return pivots; // duel v1: pas d'obstacles (équité joueur/bot, le bot ne les simule pas)
+  }
+  const SIM={ropeLength:70,snapRadius:90,perfectRadius:25,releaseBoost:1.25,speedTiers:[[0,.032],[10,.040],[20,.048],[30,.057],[40,.067],[50,.078],[60,.090],[70,.1],[80,.11],[90,.12],[100,.13]]};
+  function speedFor(score){let sp=SIM.speedTiers[0][1];for(let i=SIM.speedTiers.length-1;i>=0;i--){if(score>=SIM.speedTiers[i][0]){sp=SIM.speedTiers[i][1];break;}}return sp;}
+  function angDiff(a,b){let d=a-b;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return d;}
+  function simulateRun(level,opts){
+    opts=opts||{};const maxFrames=opts.maxFrames||9000,MIN_HOLD=6;const tapSet=opts.taps?new Set(opts.taps):null;const recorded=[];
+    let pivot=level[0],targetIdx=1,attached=true,angle=0,holdFrames=0,freeFrames=0;
+    let pos={x:pivot.x+SIM.ropeLength,y:pivot.y},vel={x:0,y:0};
+    let score=0,perfects=0,ended=false,frame=0,lastPerp=Infinity;const traj=[];
+    for(frame=0;frame<maxFrames&&!ended;frame++){
+      const tp=level[targetIdx];let release=false;
+      if(attached){holdFrames++;
+        if(tapSet){release=tapSet.has(frame);}
+        else if(opts.auto&&tp&&holdFrames>=MIN_HOLD){const vmag=Math.hypot(vel.x,vel.y)||1;const ux=vel.x/vmag,uy=vel.y/vmag;const tx=tp.x-pos.x,ty=tp.y-pos.y;const proj=tx*ux+ty*uy;if(proj>0){const perp=Math.abs(tx*uy-ty*ux);if(perp<SIM.snapRadius*0.9){if(perp>lastPerp)release=true;lastPerp=perp;}else lastPerp=Infinity;}else lastPerp=Infinity;}}
+      if(release){attached=false;holdFrames=0;freeFrames=0;vel={x:vel.x*SIM.releaseBoost,y:vel.y*SIM.releaseBoost};recorded.push(frame);}
+      const spd=speedFor(score);
+      if(attached){angle+=spd;pos.x=pivot.x+Math.cos(angle)*SIM.ropeLength;pos.y=pivot.y+Math.sin(angle)*SIM.ropeLength;const s=spd*SIM.ropeLength;vel.x=-Math.sin(angle)*s;vel.y=Math.cos(angle)*s;}
+      else{pos.x+=vel.x;pos.y+=vel.y;freeFrames++;if(tp){const d=Math.hypot(pos.x-tp.x,pos.y-tp.y);if(d<SIM.snapRadius){attached=true;pivot=tp;angle=Math.atan2(pos.y-tp.y,pos.x-tp.x);score++;const half=Math.asin(Math.min(0.98,SIM.perfectRadius/SIM.snapRadius));if(Math.abs(angDiff(angle,tp.coneAngle))<half)perfects++;targetIdx++;freeFrames=0;holdFrames=0;lastPerp=Infinity;if(targetIdx>=level.length)ended=true;}else if(freeFrames>600||d>SIM.snapRadius*8)ended=true;}else ended=true;}
+      traj.push({x:pos.x,y:pos.y,f:frame});
+    }
+    return {traj,taps:recorded,score,perfects,frames:frame,finished:targetIdx>=level.length};
+  }
+  function autoPlay(seed,pivotCount){const level=generateDuelLevel(seed,pivotCount||60);return simulateRun(level,{auto:true});}
+  window.DuelEngine={makeRng,generateDuelLevel,simulateRun,autoPlay,speedFor,angDiff,SIM,DUEL_VW,DUEL_VH};
+})();
+
+/* ===== DuelManager : matchmaking + arène live + résultat + ligue ===== */
+const DuelManager=(function(){
+  const E=window.DuelEngine;
+  const COUNT=40;                 // pivots par duel
+  const BOT_TIMEOUT=12000;        // bascule auto vers un bot après 12s d'attente
+  const TIERS=[                   // ligues (paliers de points)
+    {id:'bronze',name:'Bronze',min:0,color:'#CD7F32'},
+    {id:'silver',name:'Argent',min:120,color:'#B0BEC5'},
+    {id:'gold',name:'Or',min:300,color:'#FFD54F'},
+    {id:'platinum',name:'Platine',min:550,color:'#80DEEA'},
+    {id:'master',name:'Maître',min:850,color:'#CE93D8'}
+  ];
+  const BOT_NAMES=['Maxime','Léa','Tom','Chloé','Hugo','Jade','Eden','Nora','Yanis','Milo','Lina','Sacha','Aria','Noé','Inès','Kylian','Soan','Maya','Théo','Zoé'];
+  const M={active:false,raf:0,state:'idle',ctx:null,cssW:0,cssH:0,dpr:1,scale:1,
+    level:null,P:null,ghost:null,ghostFrame:0,opp:null,camX:0,camY:0,_acc:0,_last:0,_release:false,_cd:0,_mmTimer:null,_mmStart:0,seed:0};
+
+  // ---- données persistantes ----
+  function ensureData(){const d=DataManager.data;
+    if(d.duelWins==null)d.duelWins=0;if(d.duelLosses==null)d.duelLosses=0;if(d.duelDraws==null)d.duelDraws=0;
+    if(d.leaguePoints==null)d.leaguePoints=0;if(d.h2h==null)d.h2h={};
+    const period=Math.floor(Date.now()/(14*864e5));
+    if(d.leaguePeriod==null){d.leaguePeriod=period;}
+    else if(d.leaguePeriod!==period){d.leaguePeriod=period;d.leaguePoints=Math.floor(d.leaguePoints*0.35);} // reset doux toutes les 2 semaines
+    return d;}
+  function tierFor(pts){let t=TIERS[0];for(const x of TIERS)if(pts>=x.min)t=x;return t;}
+  function nextTier(pts){for(const x of TIERS)if(x.min>pts)return x;return null;}
+
+  // ---- emblème mini dans un canvas ----
+  function drawEmb(cv,embId,size){const EM=(typeof EMBLEMS!=='undefined'?EMBLEMS:{});const emb=EM[embId]||EM.classic;if(!emb)return;const dpr=window.devicePixelRatio||1;cv.width=size*dpr;cv.height=size*dpr;cv.style.width=size+'px';cv.style.height=size+'px';const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,size,size);c.save();c.translate(size/2,size/2);c.scale(size/30,size/30);c.fillStyle=emb.color;emb.draw(c);c.restore();}
+  function tagHTML(){return '<canvas class="duel-emb-c"></canvas><div class="duel-tag-info"><div class="duel-name"></div><div class="duel-score">0</div></div>';}
+  function fillTag(elId,name,embId,score){const el=$(elId);if(!el.querySelector('.duel-emb-c'))el.innerHTML=tagHTML();drawEmb(el.querySelector('.duel-emb-c'),embId,30);el.querySelector('.duel-name').textContent=name;el.querySelector('.duel-score').textContent=score;}
+
+  // ---- bot : adversaire crédible (nom, emblème, score cible adaptatif) ----
+  function makeBot(){const d=ensureData();const lp=d.leaguePoints||0;const rng=Math.random;
+    const name=BOT_NAMES[Math.floor(rng()*BOT_NAMES.length)];
+    const EM=(typeof EMBLEMS!=='undefined'?EMBLEMS:{classic:1});const embKeys=Object.keys(EM);const emb=embKeys[Math.floor(rng()*embKeys.length)]||'classic';
+    return {name,emblem:emb,isBot:true,leaguePoints:Math.max(0,Math.round(lp+(rng()*2-1)*60))};}
+  function botTarget(count){const d=ensureData();const lp=d.leaguePoints||0;const base=Math.min(count,9+lp/30);let t=Math.round(base+(Math.random()*2-1)*7);return Math.max(5,Math.min(count-1,t));}
+
+  // ---- construit le fantôme adverse (bot auto OU replay de taps d'un vrai joueur) ----
+  function buildGhost(level,opp,oppRun){
+    let r;
+    if(oppRun&&oppRun.taps){r=E.simulateRun(level,{taps:oppRun.taps});}
+    else{const sub=level.slice(0,botTarget(level.length)+1);r=E.simulateRun(sub,{auto:true});}
+    // score live par frame (entrée dans le rayon de snap du pivot suivant)
+    let sc=0,ti=1;const scores=[];
+    for(const pt of r.traj){if(ti<level.length){const tp=level[ti];if(Math.hypot(pt.x-tp.x,pt.y-tp.y)<E.SIM.snapRadius){sc++;ti++;}}scores.push(sc);}
+    const finalScore=(oppRun&&oppRun.score!=null)?oppRun.score:r.score;
+    return {traj:r.traj,scores,score:finalScore,perfects:(oppRun&&oppRun.perfects!=null)?oppRun.perfects:r.perfects,finished:r.finished,bot:!oppRun};
+  }
+
+  // ---- canvas ----
+  function mount(){const cv=$('duelCanvas');const dpr=window.devicePixelRatio||1;const w=window.innerWidth,h=window.innerHeight;cv.width=w*dpr;cv.height=h*dpr;cv.style.width=w+'px';cv.style.height=h+'px';M.ctx=cv.getContext('2d');M.dpr=dpr;M.cssW=w;M.cssH=h;M.scale=h/820;}
+  function S(vx,vy){return {x:(vx-M.camX)*M.scale+M.cssW/2,y:(vy-M.camY)*M.scale+M.cssH/2};}
+
+  // ---- physique joueur (miroir fidèle du moteur, input = tap) ----
+  function stepP(P,level){const SIMc=E.SIM;const tp=level[P.targetIdx];
+    if(P.attached){P.holdFrames++;if(M._release&&P.holdFrames>=3){P.attached=false;P.holdFrames=0;P.freeFrames=0;P.vel={x:P.vel.x*SIMc.releaseBoost,y:P.vel.y*SIMc.releaseBoost};P._recordTaps.push(P._frame);}}
+    M._release=false;P._frame++;
+    const spd=E.speedFor(P.score);
+    if(P.attached){P.angle+=spd;P.pos.x=P.pivot.x+Math.cos(P.angle)*SIMc.ropeLength;P.pos.y=P.pivot.y+Math.sin(P.angle)*SIMc.ropeLength;const s=spd*SIMc.ropeLength;P.vel.x=-Math.sin(P.angle)*s;P.vel.y=Math.cos(P.angle)*s;}
+    else{P.pos.x+=P.vel.x;P.pos.y+=P.vel.y;P.freeFrames++;
+      if(tp){const d=Math.hypot(P.pos.x-tp.x,P.pos.y-tp.y);
+        if(d<SIMc.snapRadius){P.attached=true;P.pivot=tp;P.angle=Math.atan2(P.pos.y-tp.y,P.pos.x-tp.x);P.score++;
+          const half=Math.asin(Math.min(0.98,SIMc.perfectRadius/SIMc.snapRadius));
+          if(Math.abs(E.angDiff(P.angle,tp.coneAngle))<half){P.perfects++;flash();try{SoundManager.playPerfect();}catch(e){}}else{try{SoundManager.playSnap();}catch(e){}}
+          P.targetIdx++;P.freeFrames=0;P.holdFrames=0;
+          if(P.targetIdx>=level.length){P.ended=true;P.finished=true;}}
+        else if(P.freeFrames>600||d>SIMc.snapRadius*8){P.ended=true;P.finished=false;}}
+      else P.ended=true;}
+    // trail
+    P._tt=(P._tt||0)+1;if(P._tt>=2){P._tt=0;const vl=Math.hypot(P.vel.x,P.vel.y)||1;P.trail.push({x:P.pos.x-P.vel.x/vl*12,y:P.pos.y-P.vel.y/vl*12,life:.9});}
+    for(let i=P.trail.length-1;i>=0;i--){P.trail[i].life-=.03;if(P.trail[i].life<=0)P.trail.splice(i,1);}}
+
+  let _flashT=0;function flash(){const f=$('duelFlash');f.style.opacity='1';_flashT=18;}
+
+  function render(now){const c=M.ctx;if(!c)return;const w=M.cssW,h=M.cssH;
+    // caméra (suit le joueur)
+    M.camX+=(M.P.pos.x-M.camX)*0.12;M.camY+=(M.P.pos.y-M.camY)*0.14;
+    c.clearRect(0,0,w,h);
+    // fond = skin de fond courant + polish + voile sombre pour le contraste
+    try{const bg=(Game.player.bgSkins||{})[DataManager.data.currentBg];if(bg){bg.draw(c,w,h);if(typeof bgPolish==='function')bgPolish(c,w,h,(typeof DARK_BGS!=='undefined'?DARK_BGS:[]).includes(DataManager.data.currentBg));}}catch(e){c.fillStyle='#15102a';c.fillRect(0,0,w,h);}
+    c.fillStyle='rgba(10,8,22,.42)';c.fillRect(0,0,w,h);
+    const sr=E.SIM.snapRadius*M.scale;
+    // liens entre pivots
+    c.strokeStyle='rgba(255,255,255,.09)';c.lineWidth=2;c.beginPath();for(let i=1;i<M.level.length;i++){const a=S(M.level[i-1].x,M.level[i-1].y),b=S(M.level[i].x,M.level[i].y);c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);}c.stroke();
+    // pivots
+    for(let i=0;i<M.level.length;i++){const p=M.level[i];const sp=S(p.x,p.y);if(sp.x<-sr||sp.x>w+sr||sp.y<-sr||sp.y>h+sr)continue;
+      c.strokeStyle=i<M.P.targetIdx?'rgba(124,179,66,.18)':'rgba(255,255,255,.13)';c.lineWidth=2;c.beginPath();c.arc(sp.x,sp.y,sr,0,6.28);c.stroke();
+      c.fillStyle=i<M.P.targetIdx?'#7CB342':'#F4A926';c.beginPath();c.arc(sp.x,sp.y,Math.max(3,6*M.scale),0,6.28);c.fill();}
+    // cible courante : zone perfect (cône doré)
+    const tp=M.level[M.P.targetIdx];if(tp){const sp=S(tp.x,tp.y);const half=Math.asin(Math.min(0.98,E.SIM.perfectRadius/E.SIM.snapRadius));
+      c.save();c.strokeStyle='#FFD54F';c.lineWidth=4;c.shadowBlur=10;c.shadowColor='rgba(255,200,40,.7)';c.beginPath();c.arc(sp.x,sp.y,sr,tp.coneAngle-half,tp.coneAngle+half);c.stroke();c.restore();
+      c.strokeStyle='rgba(255,213,79,.5)';c.lineWidth=2;c.beginPath();c.arc(sp.x,sp.y,sr+Math.sin(now/200)*3,0,6.28);c.stroke();}
+    // fantôme adverse
+    const g=M.ghost,gf=Math.min(M.ghostFrame,g.traj.length-1),gp=g.traj[gf];if(gp){const s=S(gp.x,gp.y);const oppCol=(((typeof EMBLEMS!=='undefined'?EMBLEMS:{})[M.opp.emblem])||{}).color||'#E91E63';
+      // traînée fantôme
+      c.save();for(let k=1;k<=8;k++){const idx=gf-k*2;if(idx<0)break;const tp2=g.traj[idx];const ss=S(tp2.x,tp2.y);c.globalAlpha=(1-k/9)*0.35;c.fillStyle=oppCol;c.beginPath();c.arc(ss.x,ss.y,7*M.scale,0,6.28);c.fill();}c.restore();
+      c.save();c.globalAlpha=.7;c.fillStyle=oppCol;c.shadowBlur=12;c.shadowColor=oppCol;c.beginPath();c.arc(s.x,s.y,11*M.scale,0,6.28);c.fill();c.globalAlpha=1;c.strokeStyle='rgba(255,255,255,.85)';c.lineWidth=2;c.stroke();c.restore();}
+    // joueur : corde + traînée + balle (skins courants)
+    const P=M.P;const ps=S(P.pos.x,P.pos.y);
+    if(P.attached){const pv=S(P.pivot.x,P.pivot.y);c.strokeStyle='rgba(255,255,255,.7)';c.lineWidth=2.5;c.beginPath();c.moveTo(pv.x,pv.y);c.lineTo(ps.x,ps.y);c.stroke();}
+    try{const ts=(Game.player.trailSkins||{})[DataManager.data.currentTrail];if(ts){c.fillStyle=ts.color;P.trail.forEach(t=>{const sp2=S(t.x,t.y);c.save();c.globalAlpha=t.life;c.translate(sp2.x,sp2.y);c.scale(M.scale,M.scale);ts.draw(c,{x:0,y:0,life:t.life});c.restore();});}}catch(e){}
+    try{const bs=(Game.player.ballSkins||{})[DataManager.data.currentSkin]||(Game.player.ballSkins||{}).classic;if(bs){c.save();c.translate(ps.x,ps.y);c.scale(M.scale*1.05,M.scale*1.05);c.rotate(now/250);c.shadowBlur=13;c.shadowColor=bs.color;c.fillStyle=bs.color;bs.draw(c);c.restore();}}catch(e){c.fillStyle='#fff';c.beginPath();c.arc(ps.x,ps.y,10,0,6.28);c.fill();}
+    // HUD
+    $('duelYouTag').querySelector('.duel-score').textContent=P.score;
+    $('duelOppTag').querySelector('.duel-score').textContent=g.scores[gf]||0;
+    $('duelProgress').textContent=P.score+' / '+(COUNT-1);
+    if(_flashT>0){_flashT--;if(_flashT===0)$('duelFlash').style.opacity='0';}}
+
+  function loop(now){if(!M.active)return;const dt=Math.min(64,now-(M._last||now));M._last=now;
+    if(M.state==='countdown'){M._cd-=dt;const n=Math.ceil(M._cd/700);const cd=$('duelCountdown');cd.style.display='flex';cd.textContent=n>0?n:'GO!';if(M._cd<=-300){cd.style.display='none';M.state='playing';M._acc=0;}render(now);M.raf=requestAnimationFrame(loop);return;}
+    if(M.state==='playing'){M._acc+=dt;const STEP=1000/60;let s=0;while(M._acc>=STEP&&s<6&&M.state==='playing'){M._acc-=STEP;s++;if(M.ghostFrame<M.ghost.traj.length-1)M.ghostFrame++;stepP(M.P,M.level);if(M.P.ended){finish();break;}}}
+    render(now);M.raf=requestAnimationFrame(loop);}
+
+  function startPlay(){
+    mount();ensureData();
+    M.level=E.generateDuelLevel(M.seed,COUNT);
+    M.ghost=buildGhost(M.level,M.opp,M.opp&&M.opp.run);
+    const p0=M.level[0];
+    M.P={pivot:p0,targetIdx:1,attached:true,angle:0,holdFrames:0,freeFrames:0,pos:{x:p0.x+E.SIM.ropeLength,y:p0.y},vel:{x:0,y:0},score:0,perfects:0,ended:false,finished:false,trail:[],_recordTaps:[],_frame:0};
+    M.ghostFrame=0;M.camX=p0.x;M.camY=p0.y;M._release=false;M._cd=2100;M.state='countdown';M.active=true;M._last=0;
+    fillTag('duelYouTag',DataManager.data.playerName||'Toi',DataManager.data.currentEmblem,0);
+    fillTag('duelOppTag',M.opp.name,M.opp.emblem,0);
+    $('duelMatchmaking').style.display='none';$('duelResult').style.display='none';
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    $('duelCanvas').style.display='block';$('duelHud').style.display='block';$('duelQuitBtn').style.display='block';
+    M.raf=requestAnimationFrame(loop);}
+
+  function tap(){if(M.state==='playing'&&M.P.attached)M._release=true;}
+
+  function finish(){M.state='done';cancelAnimationFrame(M.raf);try{SoundManager.playGameOver();}catch(e){}
+    const you=M.P.score,opp=M.ghost.score;
+    let res=you>opp?'win':(you<opp?'lose':(M.P.perfects>M.ghost.perfects?'win':(M.P.perfects<M.ghost.perfects?'lose':'draw')));
+    const d=ensureData();let delta=0;
+    if(res==='win'){d.duelWins++;delta=25;}else if(res==='lose'){d.duelLosses++;delta=-12;}else{d.duelDraws++;delta=5;}
+    d.leaguePoints=Math.max(0,(d.leaguePoints||0)+delta);
+    // H2H seulement vs joueurs identifiés (amis) — pas les bots
+    if(M.opp&&M.opp.uid){const h=d.h2h[M.opp.uid]||{name:M.opp.name,w:0,l:0,d:0};if(res==='win')h.w++;else if(res==='lose')h.l++;else h.d++;h.name=M.opp.name;d.h2h[M.opp.uid]=h;}
+    DataManager.save();
+    publishRun().catch(()=>{});
+    showResult(res,you,opp,delta);}
+
+  function showResult(res,you,opp,delta){
+    const t={win:{i:'🏆',c:'#4CAF50',k:'duel_win'},lose:{i:'💔',c:'#E53935',k:'duel_lose'},draw:{i:'🤝',c:'#FF9800',k:'duel_draw'}}[res];
+    $('duelResultIcon').textContent=t.i;
+    const tt=$('duelResultTitle');tt.textContent=I18N.t(t.k);tt.style.color=t.c;
+    const sc=$('duelResultScores');sc.innerHTML='';
+    const mk=(name,embId,score,win)=>{const b=document.createElement('div');b.style.cssText='display:flex;flex-direction:column;align-items:center;gap:4px;'+(win?'transform:scale(1.08)':'opacity:.85');const cv=document.createElement('canvas');drawEmb(cv,embId,44);b.appendChild(cv);const nm=document.createElement('div');nm.style.cssText='font-size:.72rem;font-weight:800;color:var(--text);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';nm.textContent=name;b.appendChild(nm);const s=document.createElement('div');s.style.cssText='font-size:1.5rem;font-weight:900;color:'+(win?'#4CAF50':'var(--text)');s.textContent=score;b.appendChild(s);return b;};
+    sc.appendChild(mk(DataManager.data.playerName||'Toi',DataManager.data.currentEmblem,you,you>=opp));
+    const vs=document.createElement('div');vs.style.cssText='font-weight:900;color:var(--text-light)';vs.textContent='—';sc.appendChild(vs);
+    sc.appendChild(mk(M.opp.name,M.opp.emblem,opp,opp>you));
+    const lg=$('duelResultLeague');const tier=tierFor(DataManager.data.leaguePoints);
+    lg.innerHTML=(delta>=0?'+':'')+delta+' <span style="opacity:.7">'+I18N.t('duel_points')+'</span> · <b style="color:'+tier.color+'">'+tier.name+'</b> ('+DataManager.data.leaguePoints+')';
+    $('duelCanvas').style.display='none';$('duelHud').style.display='none';$('duelQuitBtn').style.display='none';
+    $('duelResult').style.display='flex';M.active=false;}
+
+  // ---- matchmaking (best-effort Firestore + repli bot) ----
+  async function publishRun(){ // publie le run du joueur pour ce seed → un futur joueur pourra l'affronter en async
+    try{const LB=(typeof WeeklyLeaderboard!=='undefined')?WeeklyLeaderboard:null;const db=LB&&LB._db,uid=LB&&LB._uid;if(!db||!uid||!M.P)return;
+      await db.collection('duelQueue').doc(uid).set({uid,name:DataManager.data.playerName||'Joueur',emblem:DataManager.data.currentEmblem||'classic',seed:M.seed,run:{taps:M.P._recordTaps||[],score:M.P.score,perfects:M.P.perfects},leaguePoints:DataManager.data.leaguePoints||0,ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    }catch(e){}}
+
+  async function searchOpponent(){ // cherche un vrai joueur en file ; renvoie {opp,seed} ou null
+    try{const LB=(typeof WeeklyLeaderboard!=='undefined')?WeeklyLeaderboard:null;const db=LB&&LB._db,uid=LB&&LB._uid;if(!db||!uid)return null;
+      const snap=await db.collection('duelQueue').orderBy('ts','desc').limit(12).get();
+      for(const doc of snap.docs){const v=doc.data();if(v.uid&&v.uid!==uid&&v.run&&v.seed!=null){
+        return {opp:{name:v.name||'Joueur',emblem:v.emblem||'classic',isBot:false,uid:v.uid,leaguePoints:v.leaguePoints||0,run:v.run},seed:v.seed};}}
+    }catch(e){}
+    return null;}
+
+  function openMatchmaking(){ensureData();
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    $('duelMatchmaking').style.display='flex';$('duelMmText').textContent=I18N.t('duel_searching');
+    M._mmStart=Date.now();M.state='matchmaking';
+    // Repli automatique vers un bot après BOT_TIMEOUT pour ne jamais faire patienter longtemps.
+    const tick=()=>{const ms=Date.now()-M._mmStart;const el=Math.floor(ms/1000);$('duelMmTimer').textContent='⏱ '+el+'s';
+      if(ms>=BOT_TIMEOUT-1500&&ms<BOT_TIMEOUT)$('duelMmText').textContent=I18N.t('duel_botswitch');
+      if(ms>=BOT_TIMEOUT){clearInterval(M._mmTimer);startBot();}};
+    M._mmTimer=setInterval(tick,300);tick();
+    // tentative de vrai match en parallèle
+    searchOpponent().then(found=>{if(M.state!=='matchmaking')return;if(found){clearInterval(M._mmTimer);$('duelMmText').textContent=I18N.t('duel_found');M.opp=found.opp;M.seed=found.seed;setTimeout(startPlay,700);}});}
+
+  function startBot(){clearInterval(M._mmTimer);M.state='matchmaking';M.opp=makeBot();M.seed=(Date.now()^(Math.random()*1e9))>>>0;$('duelMmText').textContent=I18N.t('duel_found');setTimeout(startPlay,500);}
+
+  function cancelMatchmaking(){clearInterval(M._mmTimer);M.state='idle';$('duelMatchmaking').style.display='none';openHub();}
+
+  function quit(){M.active=false;cancelAnimationFrame(M.raf);M.state='idle';$('duelCanvas').style.display='none';$('duelHud').style.display='none';$('duelQuitBtn').style.display='none';$('duelResult').style.display='none';openHub();}
+
+  function openHub(){ensureData();document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$('duelHub').classList.add('active');
+    const d=DataManager.data;const tier=tierFor(d.leaguePoints);const nt=nextTier(d.leaguePoints);
+    $('duelHubLeague').innerHTML='<div style="font-size:.72rem;color:var(--text-light);font-weight:800;letter-spacing:1px;margin-bottom:4px">'+I18N.t('duel_league').toUpperCase()+'</div>'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div style="font-size:1.3rem;font-weight:900;color:'+tier.color+'">'+tier.name+'</div><div style="font-size:1.1rem;font-weight:900;color:var(--text)">'+d.leaguePoints+' <span style="font-size:.7rem;opacity:.7">'+I18N.t('duel_points')+'</span></div></div>'+
+      (nt?'<div style="height:7px;background:rgba(0,0,0,.1);border-radius:4px;margin-top:8px;overflow:hidden"><div style="height:100%;width:'+Math.min(100,Math.round((d.leaguePoints-tier.min)/(nt.min-tier.min)*100))+'%;background:'+tier.color+'"></div></div><div style="font-size:.66rem;color:var(--text-light);margin-top:3px">'+(nt.min-d.leaguePoints)+' '+I18N.t('duel_points')+' → '+nt.name+'</div>':'<div style="font-size:.66rem;color:var(--text-light);margin-top:6px">'+I18N.t('duel_maxtier')+'</div>');
+    const total=d.duelWins+d.duelLosses+d.duelDraws;
+    $('duelHubRecord').textContent=total?('🏆 '+d.duelWins+I18N.t('duel_w')+' · '+d.duelLosses+I18N.t('duel_l')+(d.duelDraws?' · '+d.duelDraws+I18N.t('duel_d'):'')):I18N.t('duel_no_games');}
+
+  // ---- i18n (fr + en ; autres langues → fallback en) ----
+  if(typeof I18N!=='undefined'&&I18N.L){
+    Object.assign(I18N.L.fr,{duel_title:'DUEL',duel_quick:'Match rapide',duel_play_bot:'Jouer contre un bot',duel_cancel:'Annuler',duel_searching:'Recherche d\'un adversaire…',duel_botswitch:'Aucun joueur trouvé — affrontement d\'un bot…',duel_found:'Adversaire trouvé !',duel_win:'VICTOIRE !',duel_lose:'DÉFAITE',duel_draw:'ÉGALITÉ',duel_points:'pts',duel_rematch:'Revanche',duel_league:'Ligue',duel_w:'V',duel_l:'D',duel_d:'N',duel_no_games:'Aucun duel joué',duel_maxtier:'Palier maximum atteint 👑',duel_menu_btn:'DUELS'});
+    Object.assign(I18N.L.en,{duel_title:'DUEL',duel_quick:'Quick match',duel_play_bot:'Play against a bot',duel_cancel:'Cancel',duel_searching:'Searching for an opponent…',duel_botswitch:'No player found — facing a bot…',duel_found:'Opponent found!',duel_win:'VICTORY!',duel_lose:'DEFEAT',duel_draw:'DRAW',duel_points:'pts',duel_rematch:'Rematch',duel_league:'League',duel_w:'W',duel_l:'L',duel_d:'D',duel_no_games:'No duels played',duel_maxtier:'Top tier reached 👑',duel_menu_btn:'DUELS'});
+  }
+
+  // ---- wiring ----
+  function init(){
+    const cv=$('duelCanvas');
+    cv.addEventListener('mousedown',tap);
+    cv.addEventListener('touchstart',e=>{e.preventDefault();tap();},{passive:false});
+    $('duelQuitBtn').onclick=()=>{if(confirm(I18N.t('campaign_quit_confirm')||'Quitter ?'))quit();};
+    $('duelMmBot').onclick=startBot;
+    $('duelMmCancel').onclick=cancelMatchmaking;
+    $('duelResultReplay').onclick=()=>{$('duelResult').style.display='none';openMatchmaking();};
+    $('duelResultMenu').onclick=()=>{$('duelResult').style.display='none';M.active=false;document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$('menuScreen').classList.add('active');};
+    $('duelQuickBtn').onclick=openMatchmaking;
+    $('duelHubClose').onclick=()=>{$('duelHub').classList.remove('active');$('menuScreen').classList.add('active');};
+    const mb=$('btnDuel');if(mb)mb.onclick=openHub;
+    window.addEventListener('resize',()=>{if(M.active)mount();});
+  }
+  if(document.readyState!=='loading')setTimeout(init,0);else document.addEventListener('DOMContentLoaded',init);
+  return {openHub,openMatchmaking,_M:M};
+})();
+</script>
+
 <!-- Blitz Result Modal (outside ui-layer so pointer-events work reliably in WebView) -->
 <div id="timeAttackResult" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);backdrop-filter:blur(6px);z-index:300;align-items:center;justify-content:center;animation:fadeIn .3s;pointer-events:auto">
 <div style="background:var(--card);border-radius:24px;padding:28px 24px;max-width:320px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.25)">
