@@ -2637,10 +2637,12 @@ const SHOP_TABS={
 balls:{skins:()=>Game.player.ballSkins,owned:'skins',cur:'currentSkin',kind:'ball',prefix:'ball_',blue:false},
 trails:{skins:()=>Game.player.trailSkins,owned:'trails',cur:'currentTrail',kind:'trail',prefix:'trail_',blue:false},
 bgs:{skins:()=>Game.player.bgSkins,owned:'backgrounds',cur:'currentBg',kind:'bg',prefix:'bg_',blue:false},
-emblems:{skins:()=>EMBLEMS,owned:'emblems',cur:'currentEmblem',kind:'ball',nameFromDef:true,blue:true},
-banners:{skins:()=>BANNERS,owned:'banners',cur:'currentBanner',kind:'bg',nameFromDef:true,blue:true},
+emblems:{skins:()=>EMBLEMS,owned:'emblems',cur:'currentEmblem',kind:'ball',nameFromDef:true,tkey:'emb_',blue:true},
+banners:{skins:()=>BANNERS,owned:'banners',cur:'currentBanner',kind:'bg',nameFromDef:true,tkey:'ban_',blue:true},
 };
 function shopItemPrice(it){return it.blue||it.priceBlue!=null?(it.priceBlue||0):(it.price||0);}
+// Nom d'un cosmétique via i18n (emb_/ban_), repli sur le nom de la définition si la clé manque.
+function cosmName(prefix,id,fallback){const k=prefix+id,v=I18N.t(k);return v===k?(fallback||id):v;}
 // Carte de profil : bannière (fond) + emblème + pseudo. Aperçu live de
 // l'identité du joueur, mise à jour à chaque sélection.
 let _profBanRAF=0;
@@ -2721,7 +2723,7 @@ if(Game.currentTab==='bgs')bgPolish(cc,120,90,DARK_BGS.includes(id));
 div.appendChild(cv);
 const nameEl=document.createElement('div');
 nameEl.className='bg-name-overlay';
-nameEl.textContent=cfg.nameFromDef?item.name:I18N.t(id.startsWith(prefix.slice(0,-1)+'_')?id:prefix+id);
+nameEl.textContent=cfg.nameFromDef?cosmName(cfg.tkey,id,item.name):I18N.t(id.startsWith(prefix.slice(0,-1)+'_')?id:prefix+id);
 div.appendChild(nameEl);
 const priceEl=document.createElement('div');
 priceEl.className='bg-price-overlay';
@@ -2758,7 +2760,7 @@ const infoDiv=document.createElement('div');
 infoDiv.className='skin-info';
 const nameEl=document.createElement('div');
 nameEl.className='skin-name';
-nameEl.textContent=cfg.nameFromDef?item.name:I18N.t(id.startsWith(prefix.slice(0,-1)+'_')?id:prefix+id);
+nameEl.textContent=cfg.nameFromDef?cosmName(cfg.tkey,id,item.name):I18N.t(id.startsWith(prefix.slice(0,-1)+'_')?id:prefix+id);
 infoDiv.appendChild(nameEl);
 const priceEl=document.createElement('div');
 priceEl.className='skin-price';
@@ -3601,7 +3603,7 @@ const def=it.type==='banner'?(BANNERS||{})[it.id]:(Game.player.bgSkins||{})[it.i
 cv=document.createElement('canvas');cv.width=120;cv.height=78;
 cv.style.cssText='border-radius:10px;width:96px;height:62px;box-shadow:0 3px 10px rgba(0,0,0,.15)';
 if(def){const cc=cv.getContext('2d');cc.save();def.draw(cc,120,78);cc.restore();}
-nameText=it.type==='banner'?(def?def.name:it.id):I18N.t('bg_'+it.id);
+nameText=it.type==='banner'?(def?cosmName('ban_',it.id,def.name):it.id):I18N.t('bg_'+it.id);
 }else{
 const def=it.type==='emblem'?(EMBLEMS||{})[it.id]:(it.type==='ball'?Game.player.ballSkins:Game.player.trailSkins)[it.id];
 cv=document.createElement('canvas');cv.width=58;cv.height=58;
@@ -3610,7 +3612,7 @@ if(def){const cc=cv.getContext('2d');cc.save();cc.translate(29,29);
 if(it.type==='trail'){cc.globalAlpha=.9;cc.fillStyle=def.color;def.draw(cc,{x:0,y:0,life:0.9});cc.globalAlpha=.7;def.draw(cc,{x:-4,y:5,life:0.7});cc.globalAlpha=.5;def.draw(cc,{x:4,y:-5,life:0.5});cc.globalAlpha=1;}
 else{cc.fillStyle=def.color;def.draw(cc);} // ball + emblem
 cc.restore();}
-nameText=it.type==='emblem'?(def?def.name:it.id):I18N.t((it.type==='ball'?'ball_':'trail_')+it.id);
+nameText=it.type==='emblem'?(def?cosmName('emb_',it.id,def.name):it.id):I18N.t((it.type==='ball'?'ball_':'trail_')+it.id);
 }
 wrap.appendChild(cv);
 const nm=document.createElement('div');
@@ -4444,7 +4446,7 @@ const DuelManager=(function(){
     const p0=M.level[0];
     M.P={pivot:p0,targetIdx:1,attached:true,angle:0,holdFrames:0,freeFrames:0,pos:{x:p0.x+E.SIM.ropeLength,y:p0.y},vel:{x:0,y:0},score:0,perfects:0,mult:1,ended:false,win:false,_minD:Infinity,trail:[],_recordTaps:[],_frame:0};
     M.ghostFrame=0;M.camX=p0.x;M.camY=p0.y;M._release=false;M._cd=2100;M.state='countdown';M.active=true;M._last=0;M._oppFinished=false;
-    fillTag('duelYouTag',DataManager.data.playerName||'Toi',DataManager.data.currentEmblem,0);
+    fillTag('duelYouTag',DataManager.data.playerName||I18N.t('name_placeholder'),DataManager.data.currentEmblem,0);
     fillTag('duelOppTag',M.opp.name,M.opp.emblem,0);
     $('duelMatchmaking').style.display='none';$('duelResult').style.display='none';
     document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
@@ -4476,7 +4478,7 @@ const DuelManager=(function(){
     const tt=$('duelResultTitle');tt.textContent=I18N.t(t.k);tt.style.color=t.c;
     const sc=$('duelResultScores');sc.innerHTML='';
     const mk=(name,embId,score,win)=>{const b=document.createElement('div');b.style.cssText='display:flex;flex-direction:column;align-items:center;gap:4px;'+(win?'transform:scale(1.08)':'opacity:.85');const cv=document.createElement('canvas');drawEmb(cv,embId,44);b.appendChild(cv);const nm=document.createElement('div');nm.style.cssText='font-size:.72rem;font-weight:800;color:var(--text);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';nm.textContent=name;b.appendChild(nm);const s=document.createElement('div');s.style.cssText='font-size:1.5rem;font-weight:900;color:'+(win?'#4CAF50':'var(--text)');s.textContent=score;b.appendChild(s);return b;};
-    sc.appendChild(mk(DataManager.data.playerName||'Toi',DataManager.data.currentEmblem,you,you>=opp));
+    sc.appendChild(mk(DataManager.data.playerName||I18N.t('name_placeholder'),DataManager.data.currentEmblem,you,you>=opp));
     const vs=document.createElement('div');vs.style.cssText='font-weight:900;color:var(--text-light)';vs.textContent='—';sc.appendChild(vs);
     sc.appendChild(mk(M.opp.name,M.opp.emblem,opp,opp>you));
     const lg=$('duelResultLeague');const tier=tierFor(DataManager.data.leaguePoints);
@@ -4565,6 +4567,13 @@ const DuelManager=(function(){
     Object.assign(I18N.L.de,{dm_group:'Duelle',dm_wins:'Duell-Siege',dm_league:'In der Liga aufsteigen',dm_played:'Gespielte Duelle',unlock_duelwins:'{0} Duell-Siege',unlock_duelplayed:'{0} gespielte Duelle',stat_duel_wins:'Siege',stat_duel_losses:'Niederlagen',stat_duel_winrate:'Siegrate',stat_duel_played:'Gespielte Duelle',stat_duel_league:'Aktuelle Liga',stat_duel_best_league:'Beste Liga'});
     Object.assign(I18N.L.it,{dm_group:'Duelli',dm_wins:'Vittorie nei duelli',dm_league:'Salire di lega',dm_played:'Duelli giocati',unlock_duelwins:'{0} vittorie nei duelli',unlock_duelplayed:'{0} duelli giocati',stat_duel_wins:'Vittorie',stat_duel_losses:'Sconfitte',stat_duel_winrate:'% Vittorie',stat_duel_played:'Duelli giocati',stat_duel_league:'Lega attuale',stat_duel_best_league:'Lega migliore'});
     Object.assign(I18N.L.pt,{dm_group:'Duelos',dm_wins:'Vitórias em duelo',dm_league:'Subir de liga',dm_played:'Duelos jogados',unlock_duelwins:'{0} vitórias em duelo',unlock_duelplayed:'{0} duelos jogados',stat_duel_wins:'Vitórias',stat_duel_losses:'Derrotas',stat_duel_winrate:'% Vitória',stat_duel_played:'Duelos jogados',stat_duel_league:'Liga atual',stat_duel_best_league:'Melhor liga'});
+    // ===== Noms d'emblèmes + bannières (i18n, repli anglais pour les autres langues) =====
+    Object.assign(I18N.L.en,{emb_classic:'Crest',emb_crown:'Crown',emb_bolt:'Bolt',emb_flame:'Blaze',emb_shield_star:'Star',emb_diamond:'Gem',emb_laurel:'Laurels',emb_skull:'Skull',emb_heart:'Heart',emb_galaxy_emb:'Cosmos',emb_orbit:'Orbit',emb_sword:'Swords',emb_rocket:'Rocket',emb_trophy:'Trophy',emb_wing:'Wings',emb_leaf:'Nature',emb_moon:'Moon',emb_anchor:'Anchor',emb_phoenix:'Phoenix',emb_eye:'Mystic Eye',emb_compass:'Compass',ban_classic:'Cream',ban_sunset:'Twilight',ban_ocean:'Ocean',ban_forest:'Forest',ban_fire:'Inferno',ban_gold:'Royal Gold',ban_sakura:'Sakura',ban_neon:'Neon',ban_emerald:'Emerald',ban_royal:'Royal',ban_galaxy_ban:'Nebula',ban_aurora_dyn:'Aurora ✨',ban_nebula_dyn:'Living Galaxy ✨',ban_prism_dyn:'Prism ✨',ban_embers_dyn:'Embers ✨',ban_eclipse_ban:'Eclipse',ban_prism_ban:'Prism'});
+    Object.assign(I18N.L.fr,{emb_classic:'Blason',emb_crown:'Couronne',emb_bolt:'Éclair',emb_flame:'Brasier',emb_shield_star:'Étoile',emb_diamond:'Gemme',emb_laurel:'Lauriers',emb_skull:'Crâne',emb_heart:'Cœur',emb_galaxy_emb:'Cosmos',emb_orbit:'Orbite',emb_sword:'Épées',emb_rocket:'Fusée',emb_trophy:'Trophée',emb_wing:'Ailes',emb_leaf:'Nature',emb_moon:'Lune',emb_anchor:'Ancre',emb_phoenix:'Phénix',emb_eye:'Œil Mystique',emb_compass:'Boussole',ban_classic:'Crème',ban_sunset:'Crépuscule',ban_ocean:'Océan',ban_forest:'Forêt',ban_fire:'Inferno',ban_gold:'Or Royal',ban_sakura:'Sakura',ban_neon:'Néon',ban_emerald:'Émeraude',ban_royal:'Royal',ban_galaxy_ban:'Nébuleuse',ban_aurora_dyn:'Aurore ✨',ban_nebula_dyn:'Galaxie Vivante ✨',ban_prism_dyn:'Prisme ✨',ban_embers_dyn:'Braises ✨',ban_eclipse_ban:'Éclipse',ban_prism_ban:'Prisme'});
+    Object.assign(I18N.L.es,{emb_classic:'Blasón',emb_crown:'Corona',emb_bolt:'Rayo',emb_flame:'Brasa',emb_shield_star:'Estrella',emb_diamond:'Gema',emb_laurel:'Laureles',emb_skull:'Calavera',emb_heart:'Corazón',emb_galaxy_emb:'Cosmos',emb_orbit:'Órbita',emb_sword:'Espadas',emb_rocket:'Cohete',emb_trophy:'Trofeo',emb_wing:'Alas',emb_leaf:'Naturaleza',emb_moon:'Luna',emb_anchor:'Ancla',emb_phoenix:'Fénix',emb_eye:'Ojo Místico',emb_compass:'Brújula',ban_classic:'Crema',ban_sunset:'Crepúsculo',ban_ocean:'Océano',ban_forest:'Bosque',ban_fire:'Inferno',ban_gold:'Oro Real',ban_sakura:'Sakura',ban_neon:'Neón',ban_emerald:'Esmeralda',ban_royal:'Real',ban_galaxy_ban:'Nebulosa',ban_aurora_dyn:'Aurora ✨',ban_nebula_dyn:'Galaxia Viva ✨',ban_prism_dyn:'Prisma ✨',ban_embers_dyn:'Brasas ✨',ban_eclipse_ban:'Eclipse',ban_prism_ban:'Prisma'});
+    Object.assign(I18N.L.de,{emb_classic:'Wappen',emb_crown:'Krone',emb_bolt:'Blitz',emb_flame:'Glut',emb_shield_star:'Stern',emb_diamond:'Edelstein',emb_laurel:'Lorbeer',emb_skull:'Totenkopf',emb_heart:'Herz',emb_galaxy_emb:'Kosmos',emb_orbit:'Orbit',emb_sword:'Schwerter',emb_rocket:'Rakete',emb_trophy:'Trophäe',emb_wing:'Flügel',emb_leaf:'Natur',emb_moon:'Mond',emb_anchor:'Anker',emb_phoenix:'Phönix',emb_eye:'Mystisches Auge',emb_compass:'Kompass',ban_classic:'Creme',ban_sunset:'Dämmerung',ban_ocean:'Ozean',ban_forest:'Wald',ban_fire:'Inferno',ban_gold:'Königsgold',ban_sakura:'Sakura',ban_neon:'Neon',ban_emerald:'Smaragd',ban_royal:'Königlich',ban_galaxy_ban:'Nebel',ban_aurora_dyn:'Aurora ✨',ban_nebula_dyn:'Lebende Galaxie ✨',ban_prism_dyn:'Prisma ✨',ban_embers_dyn:'Glut ✨',ban_eclipse_ban:'Eklipse',ban_prism_ban:'Prisma'});
+    Object.assign(I18N.L.it,{emb_classic:'Stemma',emb_crown:'Corona',emb_bolt:'Fulmine',emb_flame:'Brace',emb_shield_star:'Stella',emb_diamond:'Gemma',emb_laurel:'Allori',emb_skull:'Teschio',emb_heart:'Cuore',emb_galaxy_emb:'Cosmo',emb_orbit:'Orbita',emb_sword:'Spade',emb_rocket:'Razzo',emb_trophy:'Trofeo',emb_wing:'Ali',emb_leaf:'Natura',emb_moon:'Luna',emb_anchor:'Ancora',emb_phoenix:'Fenice',emb_eye:'Occhio Mistico',emb_compass:'Bussola',ban_classic:'Crema',ban_sunset:'Crepuscolo',ban_ocean:'Oceano',ban_forest:'Foresta',ban_fire:'Inferno',ban_gold:'Oro Reale',ban_sakura:'Sakura',ban_neon:'Neon',ban_emerald:'Smeraldo',ban_royal:'Reale',ban_galaxy_ban:'Nebulosa',ban_aurora_dyn:'Aurora ✨',ban_nebula_dyn:'Galassia Vivente ✨',ban_prism_dyn:'Prisma ✨',ban_embers_dyn:'Braci ✨',ban_eclipse_ban:'Eclissi',ban_prism_ban:'Prisma'});
+    Object.assign(I18N.L.pt,{emb_classic:'Brasão',emb_crown:'Coroa',emb_bolt:'Raio',emb_flame:'Brasa',emb_shield_star:'Estrela',emb_diamond:'Gema',emb_laurel:'Louros',emb_skull:'Caveira',emb_heart:'Coração',emb_galaxy_emb:'Cosmos',emb_orbit:'Órbita',emb_sword:'Espadas',emb_rocket:'Foguete',emb_trophy:'Troféu',emb_wing:'Asas',emb_leaf:'Natureza',emb_moon:'Lua',emb_anchor:'Âncora',emb_phoenix:'Fênix',emb_eye:'Olho Místico',emb_compass:'Bússola',ban_classic:'Creme',ban_sunset:'Crepúsculo',ban_ocean:'Oceano',ban_forest:'Floresta',ban_fire:'Inferno',ban_gold:'Ouro Real',ban_sakura:'Sakura',ban_neon:'Neon',ban_emerald:'Esmeralda',ban_royal:'Real',ban_galaxy_ban:'Nebulosa',ban_aurora_dyn:'Aurora ✨',ban_nebula_dyn:'Galáxia Viva ✨',ban_prism_dyn:'Prisma ✨',ban_embers_dyn:'Brasas ✨',ban_eclipse_ban:'Eclipse',ban_prism_ban:'Prisma'});
     // ===== Langues secondaires : tout le contenu duel/amis/ligue/live/skins/missions/stats =====
     if(I18N.L.nl)Object.assign(I18N.L.nl,{duel_title:'DUEL',duel_quick:'Snelle match',duel_cancel:'Annuleren',duel_searching:'Op zoek naar een tegenstander…',duel_found:'Tegenstander gevonden!',duel_win:'OVERWINNING!',duel_lose:'NEDERLAAG',duel_draw:'GELIJKSPEL',duel_points:'ptn',duel_rematch:'Herkansing',duel_league:'Divisie',duel_w:'W',duel_l:'V',duel_d:'G',duel_no_games:'Geen duels gespeeld',duel_maxtier:'Hoogste rang bereikt 👑',duel_menu_btn:'DUELS',duel_friends:'Vrienden',friend_your_code:'Jouw vriendencode',friend_share_hint:'Deel hem zodat anderen je toevoegen',friend_none:'Nog geen vrienden. Deel je code!',friend_offline:'Verbinding vereist voor vrienden',friend_bad_code:'Code van 6 tekens',friend_notfound:'Code niet gevonden',friend_self:'Dat is je eigen code 😅',friend_added:'Vriend toegevoegd!',friend_no_h2h:'Nooit tegen gespeeld',league_board:'Divisieranglijst',league_you:'jij',league_resets:'Reset over {0} dag(en)',league_offline:'Verbinding vereist voor de wereldranglijst',league_your_rank:'Jouw rang',league_unranked:'—',live_title:'Privéduel (live)',live_create:'Maak een kamer',live_or:'— of doe mee met een code —',live_code:'KAMERCODE',live_waiting:'Wachten op een tegenstander…',live_hint:'Daag een vriend in realtime uit in dezelfde arena.',live_offline:'Live duel niet beschikbaar (verbinding / realtime DB)',live_bad_code:'Code van 4 cijfers',live_notfound:'Kamer niet gevonden',live_full:'Kamer al vol',live_self:'Dat is je eigen kamer 😅',ball_eclipse:'Eclips',ball_prism:'Prisma',ball_venom:'Gif',trail_eclipse:'Corona',trail_prism:'Prismascherven',trail_venom:'Giftige Druppels',bg_eclipse:'Eclips',bg_prism:'Prisma',pack_eclipse:'Eclips-pakket',pack_prism:'Prisma-pakket',dm_group:'Duels',dm_wins:'Dueloverwinningen',dm_league:'Klim in de divisie',dm_played:'Gespeelde duels',unlock_duelwins:'{0} dueloverwinningen',unlock_duelplayed:'{0} gespeelde duels',stat_duel_wins:'Overwinningen',stat_duel_losses:'Nederlagen',stat_duel_winrate:'Winstpercentage',stat_duel_played:'Gespeelde duels',stat_duel_league:'Huidige divisie',stat_duel_best_league:'Beste divisie'});
     if(I18N.L.pl)Object.assign(I18N.L.pl,{duel_title:'POJEDYNEK',duel_quick:'Szybki mecz',duel_cancel:'Anuluj',duel_searching:'Szukanie przeciwnika…',duel_found:'Znaleziono przeciwnika!',duel_win:'ZWYCIĘSTWO!',duel_lose:'PORAŻKA',duel_draw:'REMIS',duel_points:'pkt',duel_rematch:'Rewanż',duel_league:'Liga',duel_w:'Z',duel_l:'P',duel_d:'R',duel_no_games:'Brak rozegranych pojedynków',duel_maxtier:'Osiągnięto najwyższą rangę 👑',duel_menu_btn:'POJEDYNKI',duel_friends:'Znajomi',friend_your_code:'Twój kod znajomego',friend_share_hint:'Udostępnij go, by Cię dodano',friend_none:'Brak znajomych. Udostępnij swój kod!',friend_offline:'Wymagane połączenie dla znajomych',friend_bad_code:'Kod 6-znakowy',friend_notfound:'Nie znaleziono kodu',friend_self:'To Twój własny kod 😅',friend_added:'Dodano znajomego!',friend_no_h2h:'Nigdy nie graliście',league_board:'Ranking ligi',league_you:'ty',league_resets:'Reset za {0} dni',league_offline:'Wymagane połączenie dla rankingu globalnego',league_your_rank:'Twoja ranga',league_unranked:'—',live_title:'Prywatny pojedynek (na żywo)',live_create:'Utwórz pokój',live_or:'— lub dołącz z kodem —',live_code:'KOD POKOJU',live_waiting:'Oczekiwanie na przeciwnika…',live_hint:'Zmierz się ze znajomym na żywo na tej samej arenie.',live_offline:'Pojedynek na żywo niedostępny (połączenie / baza danych)',live_bad_code:'Kod 4-cyfrowy',live_notfound:'Nie znaleziono pokoju',live_full:'Pokój jest pełny',live_self:'To Twój własny pokój 😅',ball_eclipse:'Zaćmienie',ball_prism:'Pryzmat',ball_venom:'Jad',trail_eclipse:'Korona',trail_prism:'Odłamki pryzmatu',trail_venom:'Toksyczne krople',bg_eclipse:'Zaćmienie',bg_prism:'Pryzmat',pack_eclipse:'Pakiet Zaćmienie',pack_prism:'Pakiet Pryzmat',dm_group:'Pojedynki',dm_wins:'Wygrane pojedynki',dm_league:'Awansuj w lidze',dm_played:'Rozegrane pojedynki',unlock_duelwins:'{0} wygranych pojedynków',unlock_duelplayed:'{0} rozegranych pojedynków',stat_duel_wins:'Wygrane',stat_duel_losses:'Przegrane',stat_duel_winrate:'% wygranych',stat_duel_played:'Rozegrane pojedynki',stat_duel_league:'Obecna liga',stat_duel_best_league:'Najlepsza liga'});
@@ -4712,13 +4721,13 @@ const LeagueBoard=(function(){
     list.innerHTML='';
     if(!players.length){
       // hors-ligne / pas encore de données : on s'affiche au moins soi-même
-      const me={uid:u,name:dd.playerName||'Toi',emblem:dd.currentEmblem||'classic',leaguePoints:dd.leaguePoints||0};
+      const me={uid:u,name:dd.playerName||I18N.t('name_placeholder'),emblem:dd.currentEmblem||'classic',leaguePoints:dd.leaguePoints||0};
       list.appendChild(row(1,me,true));
       const note=document.createElement('div');note.style.cssText='font-size:.74rem;color:var(--text-light);font-weight:700;text-align:center;margin-top:8px';note.textContent=I18N.t('league_offline');list.appendChild(note);
       return;
     }
     let myRank=-1;players.forEach((p,i)=>{if(p.uid===u)myRank=i+1;list.appendChild(row(i+1,p,p.uid===u));});
-    if(myRank===-1){const mine=$('leagueMine');mine.innerHTML='<div style="font-size:.72rem;color:var(--text-light);font-weight:800;text-align:center;margin-bottom:4px">'+I18N.t('league_your_rank')+'</div>';mine.appendChild(row(I18N.t('league_unranked'),{name:dd.playerName||'Toi',emblem:dd.currentEmblem||'classic',leaguePoints:dd.leaguePoints||0},true));}
+    if(myRank===-1){const mine=$('leagueMine');mine.innerHTML='<div style="font-size:.72rem;color:var(--text-light);font-weight:800;text-align:center;margin-bottom:4px">'+I18N.t('league_your_rank')+'</div>';mine.appendChild(row(I18N.t('league_unranked'),{name:dd.playerName||I18N.t('name_placeholder'),emblem:dd.currentEmblem||'classic',leaguePoints:dd.leaguePoints||0},true));}
   }
 
   if(typeof I18N!=='undefined'&&I18N.L){
