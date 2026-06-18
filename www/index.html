@@ -1340,6 +1340,9 @@ const campaignStats=[[I18N.t('stat_camp_level'),d.campaignLevel||1],[I18N.t('sta
 const blitzStats=[[I18N.t('prog_blitz_best')||'Record BLITZ',d.timeAttackBest||0],[I18N.t('prog_blitz_runs')||'Parties BLITZ',d.stats.blitzRuns||0]];
 const rankingStats=[[I18N.t('prog_weekly_submit')||'Soumissions classement',d.stats.weeklySubmitCount||0],[I18N.t('prog_weekly_top10')||'Top 10 classement',d.stats.weeklyTop10Count||0]];
 const streakStats=[[I18N.t('stat_streak_current')||'Série actuelle',`${d.streak||0} 🔥`],[I18N.t('stat_streak_gems')||'Gemmes séries gagnées',d._streakGemReward||0]];
+const dW=d.duelWins||0,dL=d.duelLosses||0,dD=d.duelDraws||0,dTot=dW+dL+dD;
+const rankNm=p=>{try{return DuelManager.rankFor(p||0).name;}catch(e){return '—';}};
+const duelStats=[[I18N.t('stat_duel_wins')||'Victoires',dW],[I18N.t('stat_duel_losses')||'Défaites',dL],[I18N.t('stat_duel_winrate')||'% Victoire',(dTot?Math.round(dW/dTot*100):0)+'%'],[I18N.t('stat_duel_played')||'Duels joués',dTot],[I18N.t('stat_duel_league')||'Ligue actuelle',rankNm(d.leaguePoints)],[I18N.t('stat_duel_best_league')||'Meilleure ligue',rankNm(d.duelBestLeague)]];
 c.innerHTML=
   stats.map(s=>`<div class="stat-row"><span class="stat-label">${s[0]}</span><span class="stat-value">${s[1]}</span></div>`).join('')+
   `<div style="font-size:.85rem;font-weight:900;color:#8E63B4;margin:14px 0 6px;text-align:left">⚔️ ${I18N.t('campaign')}</div>`+
@@ -1348,6 +1351,8 @@ c.innerHTML=
   blitzStats.map(s=>`<div class="stat-row"><span class="stat-label">${s[0]}</span><span class="stat-value">${s[1]}</span></div>`).join('')+
   `<div style="font-size:.85rem;font-weight:900;color:#F4A926;margin:14px 0 6px;text-align:left">🏆 ${I18N.t('leaderboard_title')||'Classement'}</div>`+
   rankingStats.map(s=>`<div class="stat-row"><span class="stat-label">${s[0]}</span><span class="stat-value">${s[1]}</span></div>`).join('')+
+  `<div style="font-size:.85rem;font-weight:900;color:#7E57C2;margin:14px 0 6px;text-align:left">🗡️ ${I18N.t('duel_title')||'Duel'}</div>`+
+  duelStats.map(s=>`<div class="stat-row"><span class="stat-label">${s[0]}</span><span class="stat-value">${s[1]}</span></div>`).join('')+
   `<div style="font-size:.85rem;font-weight:900;color:#FF6D00;margin:14px 0 6px;text-align:left">🔥 ${I18N.t('stat_streak_title')||'Série quotidienne'}</div>`+
   streakStats.map(s=>`<div class="stat-row"><span class="stat-label">${s[0]}</span><span class="stat-value">${s[1]}</span></div>`).join('');
 Achievements.render();
@@ -3251,6 +3256,10 @@ if(m.stat==='weeklyTop10Count')return(DataManager.data.stats&&DataManager.data.s
 if(m.stat==='totalPerfects')return(DataManager.data.stats&&DataManager.data.stats.totalPerfects)||0;
 if(m.stat==='totalMaxMultiplier')return(DataManager.data.stats&&DataManager.data.stats.totalMaxMultiplier)||0;
 if(m.stat==='weeklyPodiumCount')return(DataManager.data.stats&&DataManager.data.stats.weeklyPodiumCount)||0;
+if(m.stat==='duelWins')return DataManager.data.duelWins||0;
+if(m.stat==='duelPlayed')return(DataManager.data.duelWins||0)+(DataManager.data.duelLosses||0)+(DataManager.data.duelDraws||0);
+if(m.stat==='duelBestLeague')return DataManager.data.duelBestLeague||0;
+if(m.stat==='leaguePoints')return DataManager.data.leaguePoints||0;
 return 0;
 }
 // ═══════ CAMPAIGN MISSION DEFS (tiered) ═══════
@@ -3282,16 +3291,25 @@ const UNLOCK_MISSION_DEFS=[
 {id:'ub',nameKey:'unlock_balls_name',icon:'⚽',tiers:[
 {g:35,stat:'bestRun',r:'mystical',rt:'ball'},
 {g:2000,stat:'totalGemsCollected',r:'matrix',rt:'ball'},
+{g:8,stat:'duelWins',r:'venom',rt:'ball'},
 ]},
 {id:'ut',nameKey:'unlock_trails_name',icon:'🌊',tiers:[
 {g:300,stat:'totalRuns',r:'mystical',rt:'trail'},
 {g:8000,stat:'totalScore',r:'matrix',rt:'trail'},
+{g:30,stat:'duelPlayed',r:'venom',rt:'trail'},
 ]},
 {id:'ubg',nameKey:'unlock_bgs_name',icon:'🌌',tiers:[
 {g:40,stat:'bestRun',r:'mystical',rt:'bg'},
 {g:1500,stat:'totalGemsCollected',r:'matrix',rt:'bg'},
 ]},
 ];
+// ═══════ DUEL MISSION DEFS (tiered) ═══════
+const DUEL_MISSION_DEFS=[
+{id:'dw',nameKey:'dm_wins',icon:'⚔️',stat:'duelWins',tiers:[{g:1,r:20},{g:5,r:40},{g:15,r:70},{g:30,r:110},{g:60,r:180},{g:100,r:280}]},
+{id:'dlg',nameKey:'dm_league',icon:'🏆',stat:'duelBestLeague',tiers:[{g:210,r:30},{g:420,r:60},{g:630,r:100},{g:1050,r:160},{g:1680,r:260}]},
+{id:'dpl',nameKey:'dm_played',icon:'🎯',stat:'duelPlayed',tiers:[{g:5,r:15},{g:25,r:35},{g:75,r:80},{g:150,r:150}]}
+];
+function getClaimableDuelTiers(){const claimed=DataManager.data.claimedMissions||[];return DUEL_MISSION_DEFS.flatMap(def=>def.tiers.filter((t,i)=>getMissionProgress({stat:def.stat})>=t.g&&!claimed.includes(def.id+'_t'+i)));}
 function getOwnedCosmetic(r,rt){
 if(rt==='ball')return DataManager.data.skins.includes(r);
 if(rt==='trail')return DataManager.data.trails.includes(r);
@@ -3306,6 +3324,8 @@ if(t.stat==='bestRun')return I18N.t('unlock_best',t.g);
 if(t.stat==='totalGemsCollected')return I18N.t('unlock_gems',t.g.toLocaleString());
 if(t.stat==='totalRuns')return I18N.t('unlock_runs',t.g);
 if(t.stat==='totalScore')return I18N.t('unlock_score',t.g.toLocaleString());
+if(t.stat==='duelWins')return I18N.t('unlock_duelwins',t.g);
+if(t.stat==='duelPlayed')return I18N.t('unlock_duelplayed',t.g);
 return t.g;
 }
 function getCampaignMissions(){return[];}
@@ -3317,6 +3337,7 @@ function countClaimableInGroup(gid){
 const claimed=DataManager.data.claimedMissions||[];
 if(gid==='progression')return PROG_MISSION_DEFS.filter(def=>def.tiers.some((t,i)=>getMissionProgress({stat:def.stat})>=t.g&&!claimed.includes(def.id+'_t'+i))).length;
 if(gid==='campaign')return CAMP_MISSION_DEFS.filter(def=>def.tiers.some((t,i)=>getMissionProgress({stat:def.stat})>=t.g&&!claimed.includes(def.id+'_t'+i))).length;
+if(gid==='duel')return DUEL_MISSION_DEFS.filter(def=>def.tiers.some((t,i)=>getMissionProgress({stat:def.stat})>=t.g&&!claimed.includes(def.id+'_t'+i))).length;
 if(gid==='unlock')return UNLOCK_MISSION_DEFS.filter(def=>def.tiers.some(t=>getMissionProgress({stat:t.stat})>=t.g&&!getOwnedCosmetic(t.r,t.rt))).length;
 if(gid==='daily'){const today=todaySeed();const claimedD=DataManager.data.claimedDailies||[];return getDailyMissions().filter(m=>getMissionProgress(m)>=m.goal&&!claimedD.includes(m.id+'_'+today)).length;}
 return 0;
@@ -3328,8 +3349,9 @@ const dailyC=getDailyMissions().filter(m=>getMissionProgress(m)>=m.goal&&!claime
 const progC=getClaimableProgTiers();
 const campC=getClaimableCampTiers();
 const unlockC=getClaimableUnlockTiers();
-const has=dailyC.length>0||progC.length>0||campC.length>0||unlockC.length>0;
-const totalCount=dailyC.length+progC.length+campC.length+unlockC.length;
+const duelC=getClaimableDuelTiers();
+const has=dailyC.length>0||progC.length>0||campC.length>0||unlockC.length>0||duelC.length>0;
+const totalCount=dailyC.length+progC.length+campC.length+unlockC.length+duelC.length;
 if(!window._notifiedMissions)window._notifiedMissions=new Set(); // toujours initialisé
 dailyC.forEach(m=>{
 const notifKey=m.id+'_'+today;
@@ -3352,7 +3374,8 @@ const MISSION_GROUPS=[
 {id:'daily',icon:'📅',getLabel:()=>I18N.t('daily_label'),color:'var(--accent)'},
 {id:'progression',icon:'🏆',getLabel:()=>I18N.t('prog_label'),color:'var(--accent2)'},
 {id:'unlock',icon:'🔓',getLabel:()=>(I18N.t('missions_unlock')||'Déblocages'),color:'var(--gold)'},
-{id:'campaign',icon:'⚔️',getLabel:()=>I18N.t('campaign_group_label'),color:'#8E63B4'}
+{id:'campaign',icon:'⚔️',getLabel:()=>I18N.t('campaign_group_label'),color:'#8E63B4'},
+{id:'duel',icon:'🗡️',getLabel:()=>I18N.t('dm_group'),color:'#7E57C2'}
 ];
 function renderMissions(){
 const list=$('missionList');list.innerHTML='';
@@ -3361,7 +3384,7 @@ if(!currentMissionGroup){
 if(h2)h2.setAttribute('data-i18n','missions'),h2.textContent=I18N.t('missions');
 MISSION_GROUPS.forEach(g=>{
 const claimable=countClaimableInGroup(g.id);
-const total=g.id==='progression'?PROG_MISSION_DEFS.length:g.id==='campaign'?CAMP_MISSION_DEFS.length:g.id==='unlock'?UNLOCK_MISSION_DEFS.length:getMissionsForGroup(g.id).length;
+const total=g.id==='progression'?PROG_MISSION_DEFS.length:g.id==='campaign'?CAMP_MISSION_DEFS.length:g.id==='unlock'?UNLOCK_MISSION_DEFS.length:g.id==='duel'?DUEL_MISSION_DEFS.length:getMissionsForGroup(g.id).length;
 const div=document.createElement('div');div.className='mission-group-card';
 div.innerHTML=`<span style="font-size:1.4rem">${g.icon}</span><div style="flex:1;text-align:left"><div style="font-weight:900;font-size:.9rem;color:${g.color}">${g.getLabel()}</div><div style="font-size:.7rem;color:var(--text-light)">${total} mission${total>1?'s':''}</div></div>${claimable>0?'<span class="group-dot"></span>':''}<span style="color:var(--text-light);font-size:1.1rem;font-weight:900">›</span>`;
 div.onclick=()=>{currentMissionGroup=g.id;renderMissions();};
@@ -3372,6 +3395,7 @@ const g=MISSION_GROUPS.find(x=>x.id===currentMissionGroup);
 if(h2)h2.removeAttribute('data-i18n'),h2.textContent=g.getLabel();
 if(currentMissionGroup==='progression'){renderTieredGroup(PROG_MISSION_DEFS,list);}
 else if(currentMissionGroup==='campaign'){renderTieredGroup(CAMP_MISSION_DEFS,list);}
+else if(currentMissionGroup==='duel'){renderTieredGroup(DUEL_MISSION_DEFS,list);}
 else if(currentMissionGroup==='unlock'){renderUnlockGroup(list);}
 else{const isDaily=currentMissionGroup==='daily';getMissionsForGroup(currentMissionGroup).forEach(m=>renderMissionItem(list,m,isDaily,todaySeed()));}
 }
@@ -4435,6 +4459,7 @@ const DuelManager=(function(){
     const d=ensureData();let delta=0;
     if(res==='win'){d.duelWins++;delta=25;}else{d.duelLosses++;delta=-12;}
     d.leaguePoints=Math.max(0,(d.leaguePoints||0)+delta);
+    d.duelBestLeague=Math.max(d.duelBestLeague||0,d.leaguePoints); // pour les missions "atteindre une ligue"
     // H2H seulement vs joueurs identifiés (amis) — pas les bots
     if(M.opp&&M.opp.uid){const h=d.h2h[M.opp.uid]||{name:M.opp.name,w:0,l:0,d:0};if(res==='win')h.w++;else h.l++;h.name=M.opp.name;d.h2h[M.opp.uid]=h;}
     try{if(typeof DuelMissions!=='undefined')DuelMissions.onDuel(res,you,d.leaguePoints);}catch(e){}
@@ -4533,6 +4558,13 @@ const DuelManager=(function(){
     Object.assign(I18N.L.de,{ball_eclipse:'Eklipse',ball_prism:'Prisma',ball_venom:'Gift',trail_eclipse:'Korona',trail_prism:'Prismensplitter',trail_venom:'Gifttropfen',bg_eclipse:'Eklipse',bg_prism:'Prisma',pack_eclipse:'Eklipse-Paket',pack_prism:'Prisma-Paket'});
     Object.assign(I18N.L.it,{ball_eclipse:'Eclissi',ball_prism:'Prisma',ball_venom:'Veleno',trail_eclipse:'Corona',trail_prism:'Schegge di prisma',trail_venom:'Gocce tossiche',bg_eclipse:'Eclissi',bg_prism:'Prisma',pack_eclipse:'Pacchetto Eclissi',pack_prism:'Pacchetto Prisma'});
     Object.assign(I18N.L.pt,{ball_eclipse:'Eclipse',ball_prism:'Prisma',ball_venom:'Veneno',trail_eclipse:'Coroa',trail_prism:'Estilhaços de prisma',trail_venom:'Gotas tóxicas',bg_eclipse:'Eclipse',bg_prism:'Prisma',pack_eclipse:'Pacote Eclipse',pack_prism:'Pacote Prisma'});
+    // Missions de duel + déblocages (6 langues principales)
+    Object.assign(I18N.L.en,{dm_group:'Duels',dm_wins:'Duel wins',dm_league:'Climb the league',dm_played:'Duels played',unlock_duelwins:'{0} duel wins',unlock_duelplayed:'{0} duels played',stat_duel_wins:'Wins',stat_duel_losses:'Losses',stat_duel_winrate:'Win rate',stat_duel_played:'Duels played',stat_duel_league:'Current league',stat_duel_best_league:'Best league'});
+    Object.assign(I18N.L.fr,{dm_group:'Duels',dm_wins:'Victoires en duel',dm_league:'Grimper en ligue',dm_played:'Duels joués',unlock_duelwins:'{0} victoires en duel',unlock_duelplayed:'{0} duels joués',stat_duel_wins:'Victoires',stat_duel_losses:'Défaites',stat_duel_winrate:'% Victoire',stat_duel_played:'Duels joués',stat_duel_league:'Ligue actuelle',stat_duel_best_league:'Meilleure ligue'});
+    Object.assign(I18N.L.es,{dm_group:'Duelos',dm_wins:'Victorias en duelo',dm_league:'Subir de liga',dm_played:'Duelos jugados',unlock_duelwins:'{0} victorias en duelo',unlock_duelplayed:'{0} duelos jugados',stat_duel_wins:'Victorias',stat_duel_losses:'Derrotas',stat_duel_winrate:'% Victoria',stat_duel_played:'Duelos jugados',stat_duel_league:'Liga actual',stat_duel_best_league:'Mejor liga'});
+    Object.assign(I18N.L.de,{dm_group:'Duelle',dm_wins:'Duell-Siege',dm_league:'In der Liga aufsteigen',dm_played:'Gespielte Duelle',unlock_duelwins:'{0} Duell-Siege',unlock_duelplayed:'{0} gespielte Duelle',stat_duel_wins:'Siege',stat_duel_losses:'Niederlagen',stat_duel_winrate:'Siegrate',stat_duel_played:'Gespielte Duelle',stat_duel_league:'Aktuelle Liga',stat_duel_best_league:'Beste Liga'});
+    Object.assign(I18N.L.it,{dm_group:'Duelli',dm_wins:'Vittorie nei duelli',dm_league:'Salire di lega',dm_played:'Duelli giocati',unlock_duelwins:'{0} vittorie nei duelli',unlock_duelplayed:'{0} duelli giocati',stat_duel_wins:'Vittorie',stat_duel_losses:'Sconfitte',stat_duel_winrate:'% Vittorie',stat_duel_played:'Duelli giocati',stat_duel_league:'Lega attuale',stat_duel_best_league:'Lega migliore'});
+    Object.assign(I18N.L.pt,{dm_group:'Duelos',dm_wins:'Vitórias em duelo',dm_league:'Subir de liga',dm_played:'Duelos jogados',unlock_duelwins:'{0} vitórias em duelo',unlock_duelplayed:'{0} duelos jogados',stat_duel_wins:'Vitórias',stat_duel_losses:'Derrotas',stat_duel_winrate:'% Vitória',stat_duel_played:'Duelos jogados',stat_duel_league:'Liga atual',stat_duel_best_league:'Melhor liga'});
   }
 
   // ---- wiring ----
