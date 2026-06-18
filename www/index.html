@@ -206,6 +206,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 <div id="campaignAttemptDisplay" style="font-size:.6rem;font-weight:800;color:rgba(142,99,180,0.28);margin-top:-2px;letter-spacing:.3px">✨ 1er essai</div>
 </div>
 <div class="gem-hud ui-element"><div class="gem-dot"></div><span id="uiGems">0</span></div>
+<button id="menuFriendsBtn" class="ui-element" style="display:none;position:fixed;top:calc(54px + env(safe-area-inset-top, 0px));right:16px;background:rgba(255,255,255,0.95);backdrop-filter:blur(8px);padding:6px 13px;border-radius:24px;display:flex;align-items:center;gap:6px;font-weight:900;font-size:.82rem;color:#1976D2;box-shadow:0 4px 15px var(--shadow);z-index:35;border:1px solid rgba(0,0,0,0.03);cursor:pointer">👥 <span data-i18n="duel_friends">Amis</span></button>
 <div id="hudScore">0</div>
 <div id="hudMultiplier" style="display:none">×2</div>
 <div id="hudTimer" style="display:none;position:fixed;top:calc(11% + 90px);left:0;width:100%;text-align:center;font-size:2.2rem;font-weight:900;color:#E53935;text-shadow:0 0 10px rgba(229,57,53,.4);z-index:10;pointer-events:none;letter-spacing:-1px">60</div>
@@ -4132,8 +4133,9 @@ window.onload=()=>Game.init();
 <!-- League leaderboard screen -->
 <div id="leagueScreen" class="screen ui-element">
   <h1 style="font-size:1.6rem">🏆 <span data-i18n="league_board">Classement Ligue</span></h1>
-  <div id="leagueSub" style="font-size:.72rem;color:var(--text-light);font-weight:700;margin-bottom:8px"></div>
-  <div id="leagueList" style="width:100%;display:flex;flex-direction:column;gap:6px;max-height:52vh;overflow-y:auto"></div>
+  <div id="leagueSub" style="font-size:.72rem;color:var(--text-light);font-weight:700;margin-bottom:4px"></div>
+  <div id="leagueLadder" style="width:100%"></div>
+  <div id="leagueList" style="width:100%;display:flex;flex-direction:column;gap:6px;max-height:44vh;overflow-y:auto"></div>
   <div id="leagueMine" style="width:100%;margin-top:8px"></div>
   <button class="btn btn-secondary" id="leagueClose" data-i18n="back" style="margin-top:8px">RETOUR</button>
 </div>
@@ -4192,13 +4194,30 @@ const DuelManager=(function(){
   const TARGET=30;                // 1er à 30 points gagne (course, comme Blitz)
   const GEN=70;                   // pivots générés (séquence partagée ; on n'en dessine qu'une fenêtre locale)
   const BOT_TIMEOUT=8000;         // bascule auto vers un bot après 8s d'attente (pas d'option manuelle)
-  const TIERS=[                   // ligues (paliers de points)
-    {id:'bronze',name:'Bronze',min:0,color:'#CD7F32'},
-    {id:'silver',name:'Argent',min:120,color:'#B0BEC5'},
-    {id:'gold',name:'Or',min:300,color:'#FFD54F'},
-    {id:'platinum',name:'Platine',min:550,color:'#80DEEA'},
-    {id:'master',name:'Maître',min:850,color:'#CE93D8'}
+  // Ligues façon Valorant : chaque palier a 3 divisions (sauf Radiant, unique au sommet).
+  const TIERS=[
+    {id:'fer',name:'Fer',color:'#7C7C84',c2:'#52525a'},
+    {id:'bronze',name:'Bronze',color:'#CD7F32',c2:'#8a5320'},
+    {id:'argent',name:'Argent',color:'#AEB7BF',c2:'#7d868e'},
+    {id:'or',name:'Or',color:'#E6B422',c2:'#a87f10'},
+    {id:'platine',name:'Platine',color:'#3FC4C4',c2:'#1d7d86'},
+    {id:'diamant',name:'Diamant',color:'#B57EE5',c2:'#7a4bb0'},
+    {id:'ascendant',name:'Ascendant',color:'#3BB273',c2:'#1f7d4d'},
+    {id:'immortel',name:'Immortel',color:'#D14B63',c2:'#8f2238'},
+    {id:'radiant',name:'Radiant',color:'#FFE9A8',c2:'#E6B422'} // sommet, sans division
   ];
+  const DIV_PTS=70;               // points par division
+  // Renvoie le rang complet pour des points : {tier, division(0=Radiant), name, color, c2, baseAt, nextAt|null}
+  function rankFor(points){points=Math.max(0,points|0);
+    const idx=Math.floor(points/DIV_PTS);
+    const lastTi=TIERS.length-1;          // Radiant
+    let ti=Math.floor(idx/3),div=(idx%3)+1;
+    if(ti>=lastTi){ti=lastTi;div=0;}
+    const t=TIERS[ti];
+    const baseAt=(div===0?lastTi*3:(ti*3+(div-1)))*DIV_PTS;
+    const nextAt=(div===0)?null:(div<3?baseAt+DIV_PTS:(ti*3+3)*DIV_PTS);
+    return {tier:t,division:div,name:t.name+(div?' '+div:''),color:t.color,c2:t.c2,baseAt,nextAt};
+  }
   const BOT_NAMES=['Maxime','Léa','Tom','Chloé','Hugo','Jade','Eden','Nora','Yanis','Milo','Lina','Sacha','Aria','Noé','Inès','Kylian','Soan','Maya','Théo','Zoé'];
   const M={active:false,raf:0,state:'idle',ctx:null,cssW:0,cssH:0,dpr:1,scale:1,
     level:null,P:null,ghost:null,ghostFrame:0,opp:null,camX:0,camY:0,_acc:0,_last:0,_release:false,_cd:0,_mmTimer:null,_mmStart:0,seed:0};
@@ -4211,8 +4230,14 @@ const DuelManager=(function(){
     if(d.leaguePeriod==null){d.leaguePeriod=period;}
     else if(d.leaguePeriod!==period){d.leaguePeriod=period;d.leaguePoints=Math.floor(d.leaguePoints*0.35);} // reset doux toutes les 2 semaines
     return d;}
-  function tierFor(pts){let t=TIERS[0];for(const x of TIERS)if(pts>=x.min)t=x;return t;}
-  function nextTier(pts){for(const x of TIERS)if(x.min>pts)return x;return null;}
+  function tierFor(pts){return rankFor(pts);} // compat : renvoie le rang complet (name avec division, color, c2, baseAt, nextAt)
+  // Badge de rang (design propre à chaque palier : dégradé couleur + initiale + chevrons de division)
+  function rankBadgeHTML(r,sz){
+    const ps=Math.max(3,sz*0.07);
+    const pip='<span style="width:'+ps+'px;height:'+ps+'px;border-radius:50%;background:#fff;opacity:.92;box-shadow:0 0 2px rgba(0,0,0,.4)"></span>';
+    const pips=r.division?('<div style="display:flex;gap:2px;justify-content:center;margin-top:'+(sz*0.04)+'px">'+pip.repeat(r.division)+'</div>'):('<div style="font-size:'+(sz*0.3)+'px;line-height:1;margin-top:'+(sz*0.02)+'px">★</div>');
+    return '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:'+(sz*0.26)+'px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(145deg,'+r.color+','+r.c2+');box-shadow:0 3px 10px '+r.c2+'88,inset 0 1px 0 rgba(255,255,255,.45);border:'+Math.max(1,sz*0.03)+'px solid rgba(255,255,255,.4)"><div style="color:#fff;font-weight:900;font-size:'+(sz*0.38)+'px;text-shadow:0 1px 2px rgba(0,0,0,.45);line-height:1">'+r.tier.name.charAt(0)+'</div>'+pips+'</div>';
+  }
 
   // ---- emblème mini dans un canvas ----
   function drawEmb(cv,embId,size){const EM=(typeof EMBLEMS!=='undefined'?EMBLEMS:{});const emb=EM[embId]||EM.classic;if(!emb)return;const dpr=window.devicePixelRatio||1;cv.width=size*dpr;cv.height=size*dpr;cv.style.width=size+'px';cv.style.height=size+'px';const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,size,size);c.save();c.translate(size/2,size/2);c.scale(size/30,size/30);c.fillStyle=emb.color;emb.draw(c);c.restore();}
@@ -4224,19 +4249,46 @@ const DuelManager=(function(){
     const name=BOT_NAMES[Math.floor(rng()*BOT_NAMES.length)];
     const EM=(typeof EMBLEMS!=='undefined'?EMBLEMS:{classic:1});const embKeys=Object.keys(EM);const emb=embKeys[Math.floor(rng()*embKeys.length)]||'classic';
     return {name,emblem:emb,isBot:true,leaguePoints:Math.max(0,Math.round(lp+(rng()*2-1)*60))};}
-  // Allure (vitesse de lecture) du fantôme bot = difficulté : aléatoire + fonction de la ligue du joueur.
-  function botPace(){const d=ensureData();const lp=d.leaguePoints||0;return Math.max(0.45,Math.min(1.05,0.55+lp/1400+(Math.random()*2-1)*0.18));}
+  // Course de bot : MÊMES règles que le joueur (1er à 30, miss→respawn -2, ×2 sur perfect) et
+  // MÊME vitesse ; seule la PRÉCISION varie = "skill" aléatoire (nul→excellent) → il rate plus ou moins.
+  function simulateBotRace(level,skill){
+    const SIM=E.SIM,maxF=24000;
+    let pivot=level[0],ti=1,attached=true,angle=0,hold=0,free=0,minD=Infinity,lastPerp=Infinity;
+    let pos={x:pivot.x+SIM.ropeLength,y:pivot.y},vel={x:0,y:0};
+    let score=0,mult=1,frame=0,fumble=(Math.random()>skill);
+    const traj=[],scores=[];
+    while(frame<maxF&&score<TARGET){
+      const tp=level[ti];let release=false;
+      if(attached){hold++;
+        if(tp&&hold>=6){const vmag=Math.hypot(vel.x,vel.y)||1,ux=vel.x/vmag,uy=vel.y/vmag,tx=tp.x-pos.x,ty=tp.y-pos.y,proj=tx*ux+ty*uy;
+          if(fumble){if(hold>=9)release=true;} // lâche mal → ratera souvent
+          else if(proj>0){const perp=Math.abs(tx*uy-ty*ux);if(perp<SIM.snapRadius*0.9){if(perp>lastPerp)release=true;lastPerp=perp;}else lastPerp=Infinity;}
+          else lastPerp=Infinity;}
+      }
+      if(release){attached=false;hold=0;free=0;minD=Infinity;lastPerp=Infinity;vel={x:vel.x*SIM.releaseBoost,y:vel.y*SIM.releaseBoost};}
+      const spd=E.speedFor(score);
+      if(attached){angle+=spd;pos.x=pivot.x+Math.cos(angle)*SIM.ropeLength;pos.y=pivot.y+Math.sin(angle)*SIM.ropeLength;const s=spd*SIM.ropeLength;vel.x=-Math.sin(angle)*s;vel.y=Math.cos(angle)*s;}
+      else{pos.x+=vel.x;pos.y+=vel.y;free++;
+        if(tp){const d=Math.hypot(pos.x-tp.x,pos.y-tp.y);
+          if(d<SIM.snapRadius){attached=true;pivot=tp;angle=Math.atan2(pos.y-tp.y,pos.x-tp.x);
+            const half=Math.asin(Math.min(0.98,SIM.perfectRadius/SIM.snapRadius));mult=Math.abs(E.angDiff(angle,tp.coneAngle))<half?2:1;score+=mult;
+            ti++;free=0;hold=0;minD=Infinity;lastPerp=Infinity;fumble=(Math.random()>skill);if(ti>=level.length)break;}
+          else{minD=Math.min(minD,d);
+            if((d>minD+34&&minD>SIM.snapRadius)||d>SIM.snapRadius*8||free>420){score=Math.max(0,score-2);const cp=level[ti-1]||level[0];pivot=cp;attached=true;const a=Math.atan2(pos.y-cp.y,pos.x-cp.x)||0;angle=a;pos.x=cp.x+Math.cos(a)*SIM.ropeLength;pos.y=cp.y+Math.sin(a)*SIM.ropeLength;vel.x=0;vel.y=0;free=0;hold=0;minD=Infinity;lastPerp=Infinity;fumble=(Math.random()>skill);}}
+        } else break;
+      }
+      traj.push({x:pos.x,y:pos.y});scores.push(Math.min(TARGET,score));frame++;
+    }
+    return {traj,scores};
+  }
 
-  // ---- construit le fantôme adverse (bot auto OU replay de taps d'un vrai joueur) ----
+  // ---- construit le fantôme adverse (course bot OU replay de taps d'un vrai joueur) ----
   function buildGhost(level,opp,oppRun){
-    if(M.live){M.ghostPace=1;return {traj:[{x:level[0].x+E.SIM.ropeLength,y:level[0].y,f:0}],scores:[0],live:true};}
-    let r;
-    if(oppRun&&oppRun.taps){M.ghostPace=1;r=E.simulateRun(level,{taps:oppRun.taps});}
-    else{M.ghostPace=botPace();r=E.simulateRun(level,{auto:true});}
-    // score du fantôme par frame (entrée dans le rayon de snap du pivot suivant)
-    let sc=0,ti=1;const scores=[];
-    for(const pt of r.traj){if(ti<level.length){const tp=level[ti];if(Math.hypot(pt.x-tp.x,pt.y-tp.y)<E.SIM.snapRadius){sc++;ti++;}}scores.push(sc);}
-    return {traj:r.traj,scores,bot:!oppRun};
+    M.ghostPace=1; // toujours la même vitesse
+    if(M.live){return {traj:[{x:level[0].x+E.SIM.ropeLength,y:level[0].y}],scores:[0],live:true};}
+    if(oppRun&&oppRun.taps){const r=E.simulateRun(level,{taps:oppRun.taps});let sc=0,ti=1;const scores=[];for(const pt of r.traj){if(ti<level.length){const tp=level[ti];if(Math.hypot(pt.x-tp.x,pt.y-tp.y)<E.SIM.snapRadius){sc++;ti++;}}scores.push(Math.min(TARGET,sc));}return {traj:r.traj,scores,bot:false};}
+    const skill=0.22+Math.random()*0.73; // nul (0.22) → excellent (0.95)
+    return Object.assign(simulateBotRace(level,skill),{bot:true,skill});
   }
 
   // ---- canvas ----
@@ -4251,16 +4303,18 @@ const DuelManager=(function(){
     if(P.attached){P.angle+=spd;P.pos.x=P.pivot.x+Math.cos(P.angle)*SIMc.ropeLength;P.pos.y=P.pivot.y+Math.sin(P.angle)*SIMc.ropeLength;const s=spd*SIMc.ropeLength;P.vel.x=-Math.sin(P.angle)*s;P.vel.y=Math.cos(P.angle)*s;}
     else{P.pos.x+=P.vel.x;P.pos.y+=P.vel.y;P.freeFrames++;
       if(tp){const d=Math.hypot(P.pos.x-tp.x,P.pos.y-tp.y);
-        if(d<SIMc.snapRadius){P.attached=true;P.pivot=tp;P.angle=Math.atan2(P.pos.y-tp.y,P.pos.x-tp.x);P.score++;P._minD=Infinity;
+        if(d<SIMc.snapRadius){P.attached=true;P.pivot=tp;P.angle=Math.atan2(P.pos.y-tp.y,P.pos.x-tp.x);P._minD=Infinity;
           const half=Math.asin(Math.min(0.98,SIMc.perfectRadius/SIMc.snapRadius));
-          if(Math.abs(E.angDiff(P.angle,tp.coneAngle))<half){P.perfects++;flash('PERFECT!','#FFD54F');try{SoundManager.playPerfect();}catch(e){}}else{try{SoundManager.playSnap();}catch(e){}}
+          const perfect=Math.abs(E.angDiff(P.angle,tp.coneAngle))<half;
+          P.mult=perfect?2:1;P.score+=P.mult; // ×2 uniquement sur perfect
+          if(perfect){P.perfects++;flash('PERFECT! ×2','#FFD54F');try{SoundManager.playPerfect();}catch(e){}}else{try{SoundManager.playSnap();}catch(e){}}
           P.targetIdx++;P.freeFrames=0;P.holdFrames=0;
           if(P.score>=TARGET){P.ended=true;P.win=true;}
           else if(P.targetIdx>=level.length){P.ended=true;P.win=(P.score>=TARGET);}}
         else{P._minD=Math.min(P._minD==null?Infinity:P._minD,d);
           if((d>P._minD+34&&P._minD>SIMc.snapRadius)||d>SIMc.snapRadius*8||P.freeFrames>420){
             // RATÉ → respawn sur le pivot courant, −2 pts (esprit Blitz)
-            P.score=Math.max(0,P.score-2);const cp=level[P.targetIdx-1]||level[0];P.pivot=cp;P.attached=true;
+            P.score=Math.max(0,P.score-2);P.mult=1;const cp=level[P.targetIdx-1]||level[0];P.pivot=cp;P.attached=true;
             const a=Math.atan2(P.pos.y-cp.y,P.pos.x-cp.x)||0;P.angle=a;P.pos.x=cp.x+Math.cos(a)*SIMc.ropeLength;P.pos.y=cp.y+Math.sin(a)*SIMc.ropeLength;
             P.vel.x=0;P.vel.y=0;P.freeFrames=0;P.holdFrames=0;P._minD=Infinity;
             flash('−2','#E53935');try{SoundManager.playGameOver();}catch(e){}}}}
@@ -4288,16 +4342,17 @@ const DuelManager=(function(){
     const vig=c.createRadialGradient(w/2,h/2,Math.min(w,h)*0.35,w/2,h/2,Math.max(w,h)*0.62);
     vig.addColorStop(0,'rgba(0,0,0,0)');vig.addColorStop(1,'rgba(0,0,0,.45)');c.fillStyle=vig;c.fillRect(0,0,w,h);
     const sr=E.SIM.snapRadius*M.scale;
-    // On ne dessine que la FENÊTRE locale autour de la cible (parcours séquentiel) → pas de soupe de points.
-    const lo=Math.max(0,M.P.targetIdx-2),hi=Math.min(M.level.length-1,M.P.targetIdx+5);
-    // chemin local
-    c.strokeStyle='rgba(255,255,255,.12)';c.lineWidth=2;c.beginPath();for(let i=Math.max(1,lo);i<=hi;i++){const a=S(M.level[i-1].x,M.level[i-1].y),b=S(M.level[i].x,M.level[i].y);c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);}c.stroke();
-    // pivots locaux
-    for(let i=lo;i<=hi;i++){const p=M.level[i];const sp=S(p.x,p.y);
-      const isCur=i===M.P.targetIdx-1,isTgt=i===M.P.targetIdx;
-      if(isCur||isTgt){c.strokeStyle=isCur?'rgba(124,179,66,.4)':'rgba(255,255,255,.3)';c.lineWidth=2;c.beginPath();c.arc(sp.x,sp.y,sr,0,6.28);c.stroke();}
-      c.globalAlpha=i>M.P.targetIdx?Math.max(.25,1-(i-M.P.targetIdx)*0.18):1; // pivots à venir de plus en plus pâles
-      c.fillStyle=isCur?'rgba(124,179,66,.85)':'#F4A926';c.beginPath();c.arc(sp.x,sp.y,Math.max(3,(isCur||isTgt?7:5)*M.scale),0,6.28);c.fill();c.globalAlpha=1;}
+    // Parcours TRÈS épuré : seulement le pivot courant, la cible, et 2 suivants estompés.
+    // Une seule ligne directrice : courant → cible (puis cible → suivant en pointillé léger).
+    const ti=M.P.targetIdx,cur=M.level[ti-1],tgt=M.level[ti],nx1=M.level[ti+1],nx2=M.level[ti+2];
+    if(cur&&tgt){const a=S(cur.x,cur.y),b=S(tgt.x,tgt.y);c.strokeStyle='rgba(255,255,255,.22)';c.lineWidth=2.5;c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();}
+    if(tgt&&nx1){const a=S(tgt.x,tgt.y),b=S(nx1.x,nx1.y);c.save();c.setLineDash([5,7]);c.strokeStyle='rgba(255,255,255,.12)';c.lineWidth=2;c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);c.stroke();c.restore();}
+    // pivots à venir (estompés)
+    [[nx2,.22,4],[nx1,.45,5]].forEach(([p,al,rad])=>{if(!p)return;const sp=S(p.x,p.y);c.save();c.globalAlpha=al;c.fillStyle='#F4A926';c.beginPath();c.arc(sp.x,sp.y,rad*M.scale,0,6.28);c.fill();c.restore();});
+    // pivot courant (vert) + anneau
+    if(cur){const sp=S(cur.x,cur.y);c.strokeStyle='rgba(124,179,66,.45)';c.lineWidth=2;c.beginPath();c.arc(sp.x,sp.y,sr,0,6.28);c.stroke();c.fillStyle='rgba(124,179,66,.9)';c.beginPath();c.arc(sp.x,sp.y,7*M.scale,0,6.28);c.fill();}
+    // cible : anneau + zone perfect (cône doré)
+    if(tgt){const sp=S(tgt.x,tgt.y);c.strokeStyle='rgba(255,255,255,.32)';c.lineWidth=2;c.beginPath();c.arc(sp.x,sp.y,sr,0,6.28);c.stroke();c.fillStyle='#F4A926';c.beginPath();c.arc(sp.x,sp.y,7*M.scale,0,6.28);c.fill();}
     // cible courante : zone perfect (cône doré)
     const tp=M.level[M.P.targetIdx];if(tp){const sp=S(tp.x,tp.y);const half=Math.asin(Math.min(0.98,E.SIM.perfectRadius/E.SIM.snapRadius));
       c.save();c.strokeStyle='#FFD54F';c.lineWidth=4;c.shadowBlur=10;c.shadowColor='rgba(255,200,40,.7)';c.beginPath();c.arc(sp.x,sp.y,sr,tp.coneAngle-half,tp.coneAngle+half);c.stroke();c.restore();
@@ -4326,7 +4381,7 @@ const DuelManager=(function(){
     // HUD
     $('duelYouTag').querySelector('.duel-score').textContent=Math.min(TARGET,P.score);
     $('duelOppTag').querySelector('.duel-score').textContent=Math.min(TARGET,g.scores[gf]||0);
-    $('duelProgress').textContent=Math.min(TARGET,P.score)+' / '+TARGET;
+    $('duelProgress').innerHTML=Math.min(TARGET,P.score)+' / '+TARGET+(P.mult>1?' <span style="color:#FFD54F;font-weight:900">×2</span>':'');
     if(_flashT>0){_flashT--;if(_flashT===0)$('duelFlash').style.opacity='0';}}
 
   function loop(now){if(!M.active)return;const dt=Math.min(64,now-(M._last||now));M._last=now;
@@ -4344,7 +4399,7 @@ const DuelManager=(function(){
     M.level=E.generateDuelLevel(M.seed,GEN);
     M.ghost=buildGhost(M.level,M.opp,M.opp&&M.opp.run);
     const p0=M.level[0];
-    M.P={pivot:p0,targetIdx:1,attached:true,angle:0,holdFrames:0,freeFrames:0,pos:{x:p0.x+E.SIM.ropeLength,y:p0.y},vel:{x:0,y:0},score:0,perfects:0,ended:false,win:false,_minD:Infinity,trail:[],_recordTaps:[],_frame:0};
+    M.P={pivot:p0,targetIdx:1,attached:true,angle:0,holdFrames:0,freeFrames:0,pos:{x:p0.x+E.SIM.ropeLength,y:p0.y},vel:{x:0,y:0},score:0,perfects:0,mult:1,ended:false,win:false,_minD:Infinity,trail:[],_recordTaps:[],_frame:0};
     M.ghostFrame=0;M.camX=p0.x;M.camY=p0.y;M._release=false;M._cd=2100;M.state='countdown';M.active=true;M._last=0;M._oppFinished=false;
     fillTag('duelYouTag',DataManager.data.playerName||'Toi',DataManager.data.currentEmblem,0);
     fillTag('duelOppTag',M.opp.name,M.opp.emblem,0);
@@ -4403,12 +4458,11 @@ const DuelManager=(function(){
     document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
     $('duelMatchmaking').style.display='flex';$('duelMmText').textContent=I18N.t('duel_searching');
     M._mmStart=Date.now();M.state='matchmaking';
-    // Repli automatique vers un bot après BOT_TIMEOUT pour ne jamais faire patienter longtemps.
-    const tick=()=>{const ms=Date.now()-M._mmStart;const el=Math.floor(ms/1000);$('duelMmTimer').textContent='⏱ '+el+'s';
-      if(ms>=BOT_TIMEOUT-1500&&ms<BOT_TIMEOUT)$('duelMmText').textContent=I18N.t('duel_botswitch');
+    // Recherche réelle ; si rien après BOT_TIMEOUT, on affronte un bot — MAIS on l'annonce
+    // toujours comme un vrai joueur trouvé (jamais "c'est un bot"), ça fait mieux.
+    const tick=()=>{const ms=Date.now()-M._mmStart;$('duelMmTimer').textContent='⏱ '+Math.floor(ms/1000)+'s';
       if(ms>=BOT_TIMEOUT){clearInterval(M._mmTimer);startBot();}};
     M._mmTimer=setInterval(tick,300);tick();
-    // tentative de vrai match en parallèle
     searchOpponent().then(found=>{if(M.state!=='matchmaking')return;if(found){clearInterval(M._mmTimer);$('duelMmText').textContent=I18N.t('duel_found');M.opp=found.opp;M.seed=found.seed;setTimeout(startPlay,700);}});}
 
   function startBot(){clearInterval(M._mmTimer);M.state='matchmaking';M.opp=makeBot();M.seed=(Date.now()^(Math.random()*1e9))>>>0;$('duelMmText').textContent=I18N.t('duel_found');setTimeout(startPlay,500);}
@@ -4435,10 +4489,12 @@ const DuelManager=(function(){
   function quit(){M.active=false;cancelAnimationFrame(M.raf);M.state='idle';if(M.live&&M._onQuitLive)try{M._onQuitLive();}catch(e){}M.live=false;M.onRelease=null;M.onFinishLive=null;M._onQuitLive=null;$('duelCanvas').style.display='none';$('duelHud').style.display='none';$('duelQuitBtn').style.display='none';$('duelResult').style.display='none';openHub();}
 
   function openHub(){ensureData();try{FriendManager.syncProfile();}catch(e){}document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$('duelHub').classList.add('active');
-    const d=DataManager.data;const tier=tierFor(d.leaguePoints);const nt=nextTier(d.leaguePoints);
-    $('duelHubLeague').innerHTML='<div style="font-size:.72rem;color:var(--text-light);font-weight:800;letter-spacing:1px;margin-bottom:4px">'+I18N.t('duel_league').toUpperCase()+'</div>'+
-      '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><div style="font-size:1.3rem;font-weight:900;color:'+tier.color+'">'+tier.name+'</div><div style="font-size:1.1rem;font-weight:900;color:var(--text)">'+d.leaguePoints+' <span style="font-size:.7rem;opacity:.7">'+I18N.t('duel_points')+'</span></div></div>'+
-      (nt?'<div style="height:7px;background:rgba(0,0,0,.1);border-radius:4px;margin-top:8px;overflow:hidden"><div style="height:100%;width:'+Math.min(100,Math.round((d.leaguePoints-tier.min)/(nt.min-tier.min)*100))+'%;background:'+tier.color+'"></div></div><div style="font-size:.66rem;color:var(--text-light);margin-top:3px">'+(nt.min-d.leaguePoints)+' '+I18N.t('duel_points')+' → '+nt.name+'</div>':'<div style="font-size:.66rem;color:var(--text-light);margin-top:6px">'+I18N.t('duel_maxtier')+'</div>');
+    const d=DataManager.data;const r=rankFor(d.leaguePoints);
+    const pct=r.nextAt!=null?Math.min(100,Math.round((d.leaguePoints-r.baseAt)/(r.nextAt-r.baseAt)*100)):100;
+    $('duelHubLeague').innerHTML='<div style="display:flex;align-items:center;gap:12px">'+rankBadgeHTML(r,48)+
+      '<div style="flex:1;min-width:0"><div style="font-size:.64rem;color:var(--text-light);font-weight:800;letter-spacing:1px">'+I18N.t('duel_league').toUpperCase()+'</div><div style="font-size:1.25rem;font-weight:900;color:'+r.color+'">'+r.name+'</div></div>'+
+      '<div style="text-align:right;font-weight:900;font-size:1.05rem;color:var(--text)">'+d.leaguePoints+'<div style="font-size:.58rem;opacity:.6;font-weight:700">'+I18N.t('duel_points')+'</div></div></div>'+
+      (r.nextAt!=null?'<div style="height:7px;background:rgba(0,0,0,.1);border-radius:4px;margin-top:10px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,'+r.c2+','+r.color+')"></div></div><div style="font-size:.64rem;color:var(--text-light);margin-top:3px">'+(r.nextAt-d.leaguePoints)+' '+I18N.t('duel_points')+' → '+rankFor(r.nextAt).name+'</div>':'<div style="font-size:.64rem;color:var(--text-light);margin-top:8px">'+I18N.t('duel_maxtier')+'</div>');
     const total=d.duelWins+d.duelLosses+d.duelDraws;
     $('duelHubRecord').textContent=total?('🏆 '+d.duelWins+I18N.t('duel_w')+' · '+d.duelLosses+I18N.t('duel_l')+(d.duelDraws?' · '+d.duelDraws+I18N.t('duel_d'):'')):I18N.t('duel_no_games');}
 
@@ -4446,6 +4502,11 @@ const DuelManager=(function(){
   if(typeof I18N!=='undefined'&&I18N.L){
     Object.assign(I18N.L.fr,{duel_title:'DUEL',duel_quick:'Match rapide',duel_play_bot:'Jouer contre un bot',duel_cancel:'Annuler',duel_searching:'Recherche d\'un adversaire…',duel_botswitch:'Aucun joueur trouvé — affrontement d\'un bot…',duel_found:'Adversaire trouvé !',duel_win:'VICTOIRE !',duel_lose:'DÉFAITE',duel_draw:'ÉGALITÉ',duel_points:'pts',duel_rematch:'Revanche',duel_league:'Ligue',duel_w:'V',duel_l:'D',duel_d:'N',duel_no_games:'Aucun duel joué',duel_maxtier:'Palier maximum atteint 👑',duel_menu_btn:'DUELS'});
     Object.assign(I18N.L.en,{duel_title:'DUEL',duel_quick:'Quick match',duel_play_bot:'Play against a bot',duel_cancel:'Cancel',duel_searching:'Searching for an opponent…',duel_botswitch:'No player found — facing a bot…',duel_found:'Opponent found!',duel_win:'VICTORY!',duel_lose:'DEFEAT',duel_draw:'DRAW',duel_points:'pts',duel_rematch:'Rematch',duel_league:'League',duel_w:'W',duel_l:'L',duel_d:'D',duel_no_games:'No duels played',duel_maxtier:'Top tier reached 👑',duel_menu_btn:'DUELS'});
+    // Traductions complètes (es/de/it/pt) — toutes les clés duel/amis/ligue/live. Les autres langues retombent sur l'anglais.
+    Object.assign(I18N.L.es,{duel_title:'DUELO',duel_quick:'Partida rápida',duel_play_bot:'Jugar contra un bot',duel_cancel:'Cancelar',duel_searching:'Buscando un rival…',duel_found:'¡Rival encontrado!',duel_win:'¡VICTORIA!',duel_lose:'DERROTA',duel_draw:'EMPATE',duel_points:'pts',duel_rematch:'Revancha',duel_league:'Liga',duel_w:'V',duel_l:'D',duel_d:'E',duel_no_games:'Ningún duelo jugado',duel_maxtier:'Rango máximo alcanzado 👑',duel_menu_btn:'DUELOS',duel_friends:'Amigos',friend_your_code:'Tu código de amigo',friend_share_hint:'Compártelo para que te agreguen',friend_none:'Aún no tienes amigos. ¡Comparte tu código!',friend_offline:'Conexión necesaria para los amigos',friend_bad_code:'Código de 6 caracteres',friend_notfound:'Código no encontrado',friend_self:'Es tu propio código 😅',friend_added:'¡Amigo añadido!',friend_no_h2h:'Nunca enfrentados',league_board:'Clasificación de Liga',league_you:'tú',league_resets:'Reinicio en {0} día(s)',league_offline:'Conexión necesaria para la clasificación mundial',league_your_rank:'Tu rango',league_unranked:'—',live_title:'Duelo privado (en vivo)',live_create:'Crear una sala',live_or:'— o únete con un código —',live_code:'CÓDIGO DE SALA',live_waiting:'Esperando a un rival…',live_hint:'Enfréntate a un amigo en tiempo real en la misma arena.',live_offline:'Duelo en vivo no disponible (conexión / base en tiempo real)',live_bad_code:'Código de 4 dígitos',live_notfound:'Sala no encontrada',live_full:'La sala ya está llena',live_self:'Es tu propia sala 😅'});
+    Object.assign(I18N.L.de,{duel_title:'DUELL',duel_quick:'Schnelles Match',duel_play_bot:'Gegen einen Bot spielen',duel_cancel:'Abbrechen',duel_searching:'Suche einen Gegner…',duel_found:'Gegner gefunden!',duel_win:'SIEG!',duel_lose:'NIEDERLAGE',duel_draw:'UNENTSCHIEDEN',duel_points:'Pkt',duel_rematch:'Revanche',duel_league:'Liga',duel_w:'S',duel_l:'N',duel_d:'U',duel_no_games:'Keine Duelle gespielt',duel_maxtier:'Höchster Rang erreicht 👑',duel_menu_btn:'DUELLE',duel_friends:'Freunde',friend_your_code:'Dein Freundescode',friend_share_hint:'Teile ihn, damit man dich hinzufügt',friend_none:'Noch keine Freunde. Teile deinen Code!',friend_offline:'Verbindung für Freunde erforderlich',friend_bad_code:'6-stelliger Code',friend_notfound:'Code nicht gefunden',friend_self:'Das ist dein eigener Code 😅',friend_added:'Freund hinzugefügt!',friend_no_h2h:'Nie gegeneinander',league_board:'Liga-Rangliste',league_you:'du',league_resets:'Zurücksetzen in {0} Tag(en)',league_offline:'Verbindung für die globale Rangliste erforderlich',league_your_rank:'Dein Rang',league_unranked:'—',live_title:'Privates Duell (live)',live_create:'Raum erstellen',live_or:'— oder mit Code beitreten —',live_code:'RAUMCODE',live_waiting:'Warte auf einen Gegner…',live_hint:'Tritt in Echtzeit gegen einen Freund in derselben Arena an.',live_offline:'Live-Duell nicht verfügbar (Verbindung / Echtzeit-DB)',live_bad_code:'4-stelliger Code',live_notfound:'Raum nicht gefunden',live_full:'Raum bereits voll',live_self:'Das ist dein eigener Raum 😅'});
+    Object.assign(I18N.L.it,{duel_title:'DUELLO',duel_quick:'Partita rapida',duel_play_bot:'Gioca contro un bot',duel_cancel:'Annulla',duel_searching:'Ricerca di un avversario…',duel_found:'Avversario trovato!',duel_win:'VITTORIA!',duel_lose:'SCONFITTA',duel_draw:'PAREGGIO',duel_points:'pti',duel_rematch:'Rivincita',duel_league:'Lega',duel_w:'V',duel_l:'S',duel_d:'P',duel_no_games:'Nessun duello giocato',duel_maxtier:'Grado massimo raggiunto 👑',duel_menu_btn:'DUELLI',duel_friends:'Amici',friend_your_code:'Il tuo codice amico',friend_share_hint:'Condividilo per farti aggiungere',friend_none:'Ancora nessun amico. Condividi il tuo codice!',friend_offline:'Connessione necessaria per gli amici',friend_bad_code:'Codice di 6 caratteri',friend_notfound:'Codice non trovato',friend_self:'È il tuo codice 😅',friend_added:'Amico aggiunto!',friend_no_h2h:'Mai affrontati',league_board:'Classifica Lega',league_you:'tu',league_resets:'Azzeramento tra {0} giorno/i',league_offline:'Connessione necessaria per la classifica mondiale',league_your_rank:'Il tuo grado',league_unranked:'—',live_title:'Duello privato (live)',live_create:'Crea una stanza',live_or:'— oppure entra con un codice —',live_code:'CODICE STANZA',live_waiting:'In attesa di un avversario…',live_hint:'Sfida un amico in tempo reale nella stessa arena.',live_offline:'Duello live non disponibile (connessione / DB realtime)',live_bad_code:'Codice di 4 cifre',live_notfound:'Stanza non trovata',live_full:'Stanza già piena',live_self:'È la tua stanza 😅'});
+    Object.assign(I18N.L.pt,{duel_title:'DUELO',duel_quick:'Partida rápida',duel_play_bot:'Jogar contra um bot',duel_cancel:'Cancelar',duel_searching:'À procura de um adversário…',duel_found:'Adversário encontrado!',duel_win:'VITÓRIA!',duel_lose:'DERROTA',duel_draw:'EMPATE',duel_points:'pts',duel_rematch:'Revanche',duel_league:'Liga',duel_w:'V',duel_l:'D',duel_d:'E',duel_no_games:'Nenhum duelo jogado',duel_maxtier:'Patamar máximo atingido 👑',duel_menu_btn:'DUELOS',duel_friends:'Amigos',friend_your_code:'O teu código de amigo',friend_share_hint:'Partilha-o para te adicionarem',friend_none:'Ainda sem amigos. Partilha o teu código!',friend_offline:'Ligação necessária para os amigos',friend_bad_code:'Código de 6 caracteres',friend_notfound:'Código não encontrado',friend_self:'É o teu próprio código 😅',friend_added:'Amigo adicionado!',friend_no_h2h:'Nunca defrontados',league_board:'Classificação da Liga',league_you:'tu',league_resets:'Reinício em {0} dia(s)',league_offline:'Ligação necessária para a classificação mundial',league_your_rank:'O teu lugar',league_unranked:'—',live_title:'Duelo privado (ao vivo)',live_create:'Criar uma sala',live_or:'— ou entra com um código —',live_code:'CÓDIGO DA SALA',live_waiting:'À espera de um adversário…',live_hint:'Enfrenta um amigo em tempo real na mesma arena.',live_offline:'Duelo ao vivo indisponível (ligação / BD em tempo real)',live_bad_code:'Código de 4 dígitos',live_notfound:'Sala não encontrada',live_full:'Sala já cheia',live_self:'É a tua própria sala 😅'});
   }
 
   // ---- wiring ----
@@ -4465,7 +4526,7 @@ const DuelManager=(function(){
     window.addEventListener('resize',()=>{if(M.active)mount();});
   }
   if(document.readyState!=='loading')setTimeout(init,0);else document.addEventListener('DOMContentLoaded',init);
-  return {openHub,openMatchmaking,challengeFriend,startLive,setLiveOppTaps,setOppFinal,tierFor,TIERS,_M:M};
+  return {openHub,openMatchmaking,challengeFriend,startLive,setLiveOppTaps,setOppFinal,tierFor,rankFor,rankBadgeHTML,TIERS,_M:M};
 })();
 
 /* ===== FriendManager : amis (codes + liste + duels entre amis + H2H) ===== */
@@ -4501,7 +4562,8 @@ const FriendManager=(function(){
 
   function renderMyCode(){const el=$('friendsMyCode');if(!el)return;el.innerHTML='<div style="font-size:.7rem;color:var(--text-light);font-weight:800;letter-spacing:1px;margin-bottom:3px">'+I18N.t('friend_your_code').toUpperCase()+'</div><div style="font-size:1.8rem;font-weight:900;letter-spacing:5px;color:#1976D2">'+myCode()+'</div><div style="font-size:.66rem;color:var(--text-light);margin-top:3px">'+I18N.t('friend_share_hint')+'</div>';}
 
-  async function open(){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$('friendsScreen').classList.add('active');
+  let _returnTo='hub';
+  async function open(from){_returnTo=(from==='menu')?'menu':'hub';document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$('friendsScreen').classList.add('active');
     renderMyCode();syncProfile();
     const list=$('friendsList');list.innerHTML='<div style="text-align:center;color:var(--text-light);font-size:.8rem;padding:14px">…</div>';$('friendsEmpty').style.display='none';
     const friends=await listFriends();render(friends);}
@@ -4529,9 +4591,11 @@ const FriendManager=(function(){
 
   function init(){
     const ab=$('friendAddBtn');if(ab)ab.onclick=async()=>{const inp=$('friendCodeInput');ab.disabled=true;const r=await addByCode(inp.value);ab.disabled=false;
-      if(r.ok){inp.value='';showToast(I18N.t('friend_added'));open();}else showToast(r.msg||'❌');};
-    const fc=$('friendsClose');if(fc)fc.onclick=()=>{$('friendsScreen').classList.remove('active');DuelManager.openHub();};
-    const fb=$('duelFriendsBtn');if(fb)fb.onclick=open;
+      if(r.ok){inp.value='';showToast(I18N.t('friend_added'));open(_returnTo);}else showToast(r.msg||'❌');};
+    const fc=$('friendsClose');if(fc)fc.onclick=()=>{$('friendsScreen').classList.remove('active');if(_returnTo==='menu')$('menuScreen').classList.add('active');else DuelManager.openHub();};
+    const fb=$('duelFriendsBtn');if(fb)fb.onclick=()=>open('hub');
+    // Onglet Amis sur le menu principal (sous les gemmes) — visible seulement sur le menu
+    const mfb=$('menuFriendsBtn');if(mfb){mfb.onclick=()=>open('menu');const menu=$('menuScreen');const upd=()=>{mfb.style.display=(menu&&menu.classList.contains('active'))?'flex':'none';};if(menu&&window.MutationObserver){new MutationObserver(upd).observe(menu,{attributes:true,attributeFilter:['class']});}upd();}
   }
   if(document.readyState!=='loading')setTimeout(init,0);else document.addEventListener('DOMContentLoaded',init);
   return {open,syncProfile,myCode};
@@ -4561,6 +4625,12 @@ const LeagueBoard=(function(){
   async function open(){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$('leagueScreen').classList.add('active');
     try{FriendManager.syncProfile();}catch(e){}
     $('leagueSub').textContent=I18N.t('league_resets',daysLeft());
+    // Échelle de toutes les ligues (façon Valorant) — palier courant mis en avant
+    try{const T=DuelManager.TIERS,myT=DuelManager.rankFor(DataManager.data.leaguePoints).tier.id;
+      let lad='<div style="display:flex;gap:7px;overflow-x:auto;padding:6px 2px 8px;margin-bottom:6px">';
+      T.forEach(t=>{const isMe=t.id===myT;const r={tier:t,division:t.id==='radiant'?0:1,color:t.color,c2:t.c2,name:t.name};
+        lad+='<div style="flex:0 0 auto;text-align:center;opacity:'+(isMe?'1':'.45')+'">'+DuelManager.rankBadgeHTML(r,isMe?44:36)+'<div style="font-size:.54rem;font-weight:800;color:'+t.color+';margin-top:2px;white-space:nowrap">'+t.name+'</div></div>';});
+      lad+='</div>';$('leagueLadder').innerHTML=lad;}catch(e){$('leagueLadder').innerHTML='';}
     const list=$('leagueList');list.innerHTML='<div style="text-align:center;color:var(--text-light);font-size:.8rem;padding:14px">…</div>';
     $('leagueMine').innerHTML='';
     const d=db(),u=uid();const dd=DataManager.data;
