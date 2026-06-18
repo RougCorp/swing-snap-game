@@ -341,7 +341,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;heigh
 <div id="leaderboardResetNote" style="font-size:.72rem;color:var(--text-light);margin-top:10px;text-align:center" data-i18n="leaderboard_reset">Remet à zéro chaque lundi</div>
 </div>
 <div id="shopScreen" class="screen ui-element">
-<div class="screen-header"><button class="back-btn" id="btnCloseShop">&#8592;</button><h2 data-i18n="shop">Collection</h2><div style="margin-left:auto;display:flex;gap:8px;align-items:center;font-weight:900;font-size:.85rem"><span style="display:inline-flex;align-items:center;gap:4px"><span class="gem-i"></span><span id="uiGemsShop">0</span></span><span style="display:inline-flex;align-items:center;gap:4px"><span class="gem-b"></span><span id="uiGemsBlue">0</span></span></div></div>
+<div class="screen-header"><button class="back-btn" id="btnCloseShop">&#8592;</button><h2 data-i18n="shop">Collection</h2><div style="margin-left:auto;display:flex;gap:8px;align-items:center;font-weight:900;font-size:.85rem"><span style="display:inline-flex;align-items:center;gap:4px"><span class="gem-i"></span><span id="uiGemsShop">0</span></span><span style="display:inline-flex;align-items:center;gap:4px"><span class="gem-b"></span><span id="uiGemsBlue">0</span></span><button id="btnConvertBlue" title="Convertir" style="background:#29B6F6;color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:1rem;font-weight:900;line-height:1;cursor:pointer;padding:0">+</button></div></div>
 <div id="profileCard" style="margin-bottom:10px"></div>
 <div class="tabs"><button class="tab active" id="tabBalls" onclick="switchTab('balls')" data-i18n="balls">BALLES</button><button class="tab" id="tabTrails" onclick="switchTab('trails')" data-i18n="trails">TRAINEES</button><button class="tab" id="tabBgs" onclick="switchTab('bgs')" data-i18n="backgrounds">FONDS</button><button class="tab" id="tabEmblems" onclick="switchTab('emblems')" data-i18n="emblems">EMBLÈMES</button><button class="tab" id="tabBanners" onclick="switchTab('banners')" data-i18n="banners">BANNIÈRES</button></div>
 <div class="skin-grid" id="skinGrid"></div>
@@ -3308,7 +3308,7 @@ const UNLOCK_MISSION_DEFS=[
 // ═══════ DUEL MISSION DEFS (tiered) ═══════
 const DUEL_MISSION_DEFS=[
 {id:'dw',nameKey:'dm_wins',icon:'⚔️',stat:'duelWins',tiers:[{g:1,r:20},{g:5,r:40},{g:15,r:70},{g:30,r:110},{g:60,r:180},{g:100,r:280}]},
-{id:'dlg',nameKey:'dm_league',icon:'🏆',stat:'duelBestLeague',tiers:[{g:210,r:30},{g:420,r:60},{g:630,r:100},{g:1050,r:160},{g:1680,r:260}]},
+{id:'dlg',nameKey:'dm_league',icon:'🏆',stat:'duelBestLeague',tiers:[{g:300,r:30},{g:600,r:60},{g:900,r:100},{g:1500,r:160},{g:2400,r:280}]},
 {id:'dpl',nameKey:'dm_played',icon:'🎯',stat:'duelPlayed',tiers:[{g:5,r:15},{g:25,r:35},{g:75,r:80},{g:150,r:150}]}
 ];
 function getClaimableDuelTiers(){const claimed=DataManager.data.claimedMissions||[];return DUEL_MISSION_DEFS.flatMap(def=>def.tiers.filter((t,i)=>getMissionProgress({stat:def.stat})>=t.g&&!claimed.includes(def.id+'_t'+i)));}
@@ -3855,6 +3855,21 @@ $('btnShare').onclick=()=>shareScore();
 $('btnMenu').onclick=()=>{$('gameOverScreen').classList.remove('active');$('menuScreen').classList.add('active');};
 $('btnShop').onclick=()=>{$('menuScreen').classList.remove('active');$('shopScreen').classList.add('active');renderShop();};
 $('btnCloseShop').onclick=()=>{$('shopScreen').classList.remove('active');$('menuScreen').classList.add('active');};
+// Conversion gemmes jaunes → bleues (100:1). Volontairement non négligeable (pas trop facile).
+function openConvertBlue(){const RATE=100;const opts=[5,10,25];
+  const ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;z-index:330;background:rgba(0,0,0,.6);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  const card=document.createElement('div');card.style.cssText='background:var(--card);border-radius:22px;padding:22px 18px;max-width:320px;width:100%;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.3)';
+  let html='<div style="font-size:1.8rem">🔁</div><div style="font-weight:900;font-size:1.05rem;color:var(--text);margin:2px 0 2px">'+I18N.t('convert_title')+'</div><div style="font-size:.72rem;color:var(--text-light);margin-bottom:14px">'+I18N.t('convert_sub',RATE)+'</div>';
+  html+='<div id="convOpts" style="display:flex;flex-direction:column;gap:8px"></div>';
+  card.innerHTML=html;
+  opts.forEach(b=>{const cost=b*RATE;const btn=document.createElement('button');btn.className='btn btn-primary';btn.style.cssText='width:100%;margin:0;display:flex;align-items:center;justify-content:center;gap:8px';
+    btn.innerHTML='<span class="gem-b"></span> +'+b+' &nbsp;·&nbsp; <span class="gem-i"></span> '+cost;
+    btn.onclick=()=>{if((DataManager.data.gems||0)<cost){showToast(I18N.t('toast_not_enough'));return;}DataManager.data.gems-=cost;DataManager.data.gemsBlue=(DataManager.data.gemsBlue||0)+b;DataManager.save();DataManager.updateUI&&DataManager.updateUI();renderShop();showToast('+'+b+' <span class="gem-b"></span>');ov.remove();};
+    card.querySelector('#convOpts').appendChild(btn);});
+  const cl=document.createElement('button');cl.className='btn btn-secondary';cl.style.cssText='width:100%;margin-top:10px';cl.textContent=I18N.t('close');cl.onclick=()=>ov.remove();card.appendChild(cl);
+  ov.appendChild(card);document.body.appendChild(ov);}
+{const cb=$('btnConvertBlue');if(cb)cb.onclick=openConvertBlue;}
 $('btnMissions').onclick=()=>{currentMissionGroup=null;$('menuScreen').classList.remove('active');$('missionScreen').classList.add('active');renderMissions();};
 $('btnCloseMissions').onclick=()=>{if(currentMissionGroup!==null){currentMissionGroup=null;renderMissions();}else{$('missionScreen').classList.remove('active');$('menuScreen').classList.add('active');}};
 $('btnIAP').onclick=()=>{$('menuScreen').classList.remove('active');$('iapScreen').classList.add('active');renderPacks();};
@@ -4251,7 +4266,7 @@ const DuelManager=(function(){
     {id:'immortel',name:'Immortel',color:'#D14B63',c2:'#8f2238'},
     {id:'radiant',name:'Radiant',color:'#FFE9A8',c2:'#E6B422'} // sommet, sans division
   ];
-  const DIV_PTS=70;               // points par division
+  const DIV_PTS=100;              // points par division (progression exigeante, ~24 duels/division)
   // Renvoie le rang complet pour des points : {tier, division(0=Radiant), name, color, c2, baseAt, nextAt|null}
   function rankFor(points){points=Math.max(0,points|0);
     const idx=Math.floor(points/DIV_PTS);
@@ -4380,10 +4395,14 @@ const DuelManager=(function(){
     if(visVW>=E.DUEL_VW){M.camX=E.DUEL_VW/2;} // écran large : on centre l'arène (pas de vide latéral)
     else{M.camX+=(fx-M.camX)*0.12;M.camX=Math.max(visVW/2,Math.min(E.DUEL_VW-visVW/2,M.camX));}
     c.clearRect(0,0,w,h);
-    // fond d'arène dédié : dégradé indigo profond + vignette (net, contrasté — pas le fond délavé du jeu)
-    const bgg=c.createRadialGradient(w/2,h*0.40,30,w/2,h*0.5,Math.max(w,h)*0.78);
-    bgg.addColorStop(0,'#2a1a4e');bgg.addColorStop(0.5,'#171029');bgg.addColorStop(1,'#08060f');
-    c.fillStyle=bgg;c.fillRect(0,0,w,h);
+    // Fond = UNIVERS de TA division (même pour tous les joueurs du palier). Chacun voit le sien.
+    const _mt=rankFor(DataManager.data.leaguePoints).tier;
+    c.fillStyle='#0a0812';c.fillRect(0,0,w,h);
+    const bgg=c.createRadialGradient(w/2,h*0.40,12,w/2,h*0.48,Math.max(w,h)*0.72);
+    bgg.addColorStop(0,_mt.color);bgg.addColorStop(0.42,_mt.c2);bgg.addColorStop(1,'rgba(0,0,0,0)');
+    c.save();c.globalAlpha=.4;c.fillStyle=bgg;c.fillRect(0,0,w,h);c.restore();
+    // quelques particules de la couleur du palier (ambiance)
+    c.save();const _pt=now/1000;for(let i=0;i<16;i++){const x=(i*9973%1000)/1000*w,y=((i*6151%1000)/1000*h+Math.sin(_pt+i)*8);c.globalAlpha=.12+.1*Math.sin(_pt*1.4+i);c.fillStyle=_mt.color;c.beginPath();c.arc(x,y,1.6,0,6.28);c.fill();}c.restore();
     const vig=c.createRadialGradient(w/2,h/2,Math.min(w,h)*0.35,w/2,h/2,Math.max(w,h)*0.62);
     vig.addColorStop(0,'rgba(0,0,0,0)');vig.addColorStop(1,'rgba(0,0,0,.45)');c.fillStyle=vig;c.fillRect(0,0,w,h);
     const sr=E.SIM.snapRadius*M.scale;
@@ -4459,7 +4478,7 @@ const DuelManager=(function(){
     const you=Math.min(TARGET,M.P.score),opp=Math.min(TARGET,M.ghost.scores[Math.floor(M.ghostFrame)]||0);
     const res=M.P.win?'win':'lose'; // course : le 1er à 30 gagne
     const d=ensureData();let delta=0;
-    if(res==='win'){d.duelWins++;delta=25;}else{d.duelLosses++;delta=-12;}
+    if(res==='win'){d.duelWins++;delta=20;}else{d.duelLosses++;delta=-15;}
     d.leaguePoints=Math.max(0,(d.leaguePoints||0)+delta);
     d.duelBestLeague=Math.max(d.duelBestLeague||0,d.leaguePoints); // pour les missions "atteindre une ligue"
     // H2H seulement vs joueurs identifiés (amis) — pas les bots
@@ -4534,13 +4553,30 @@ const DuelManager=(function(){
 
   function quit(){M.active=false;cancelAnimationFrame(M.raf);M.state='idle';if(M.live&&M._onQuitLive)try{M._onQuitLive();}catch(e){}M.live=false;M.onRelease=null;M.onFinishLive=null;M._onQuitLive=null;$('duelCanvas').style.display='none';$('duelHud').style.display='none';$('duelQuitBtn').style.display='none';$('duelResult').style.display='none';openHub();}
 
+  // Vue "parcours des ligues" : toutes les divisions Fer→Radiant, la tienne mise en avant.
+  function showLeaguesPath(){const cur=rankFor(DataManager.data.leaguePoints);
+    const ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;z-index:330;background:rgba(10,8,20,.85);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:calc(env(safe-area-inset-top) + 14px) 16px calc(env(safe-area-inset-bottom) + 14px)';
+    ov.onclick=e=>{if(e.target===ov)ov.remove();};
+    const card=document.createElement('div');card.style.cssText='background:linear-gradient(180deg,#1a1230,#0e0a1c);border-radius:22px;padding:18px 14px;max-width:380px;width:100%;max-height:88vh;overflow:auto;box-shadow:0 18px 50px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.08)';
+    let html='<div style="text-align:center;color:#fff;font-weight:900;font-size:1.15rem">🏆 '+I18N.t('league_path')+'</div><div style="text-align:center;color:rgba(255,255,255,.55);font-size:.7rem;margin-bottom:12px">'+I18N.t('league_path_sub')+'</div>';
+    for(let ti=TIERS.length-1;ti>=0;ti--){const t=TIERS[ti],isRad=t.id==='radiant',divs=isRad?[0]:[3,2,1];
+      html+='<div style="display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.06)"><div style="flex:1;min-width:0;font-weight:900;font-size:.95rem;color:'+t.color+'">'+t.name+'</div><div style="display:flex;gap:6px">';
+      divs.forEach(div=>{const r={tier:t,division:div,color:t.color,c2:t.c2,name:t.name},me=(t.id===cur.tier.id&&div===cur.division),base=(isRad?(TIERS.length-1)*3:(ti*3+(div-1)))*DIV_PTS;
+        html+='<div style="text-align:center;'+(me?'transform:scale(1.06)':'opacity:.5')+'">'+rankBadgeHTML(r,me?42:34)+'<div style="font-size:.5rem;color:rgba(255,255,255,.6);margin-top:1px">'+base+'</div></div>';});
+      html+='</div></div>';}
+    html+='<div style="text-align:center;margin-top:12px;color:'+cur.color+';font-weight:900">'+I18N.t('league_you')+' · '+cur.name+' ('+DataManager.data.leaguePoints+' '+I18N.t('duel_points')+')</div>';
+    card.innerHTML=html;const cl=document.createElement('button');cl.className='btn btn-secondary';cl.style.cssText='width:100%;margin-top:12px';cl.textContent=I18N.t('close');cl.onclick=()=>ov.remove();card.appendChild(cl);
+    ov.appendChild(card);document.body.appendChild(ov);}
+
   function openHub(){ensureData();try{FriendManager.syncProfile();}catch(e){}document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$('duelHub').classList.add('active');
     const d=DataManager.data;const r=rankFor(d.leaguePoints);
     const pct=r.nextAt!=null?Math.min(100,Math.round((d.leaguePoints-r.baseAt)/(r.nextAt-r.baseAt)*100)):100;
     $('duelHubLeague').innerHTML='<div style="display:flex;align-items:center;gap:12px">'+rankBadgeHTML(r,48)+
       '<div style="flex:1;min-width:0"><div style="font-size:.64rem;color:var(--text-light);font-weight:800;letter-spacing:1px">'+I18N.t('duel_league').toUpperCase()+'</div><div style="font-size:1.25rem;font-weight:900;color:'+r.color+'">'+r.name+'</div></div>'+
       '<div style="text-align:right;font-weight:900;font-size:1.05rem;color:var(--text)">'+d.leaguePoints+'<div style="font-size:.58rem;opacity:.6;font-weight:700">'+I18N.t('duel_points')+'</div></div></div>'+
-      (r.nextAt!=null?'<div style="height:7px;background:rgba(0,0,0,.1);border-radius:4px;margin-top:10px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,'+r.c2+','+r.color+')"></div></div><div style="font-size:.64rem;color:var(--text-light);margin-top:3px">'+(r.nextAt-d.leaguePoints)+' '+I18N.t('duel_points')+' → '+rankFor(r.nextAt).name+'</div>':'<div style="font-size:.64rem;color:var(--text-light);margin-top:8px">'+I18N.t('duel_maxtier')+'</div>');
+      (r.nextAt!=null?'<div style="height:7px;background:rgba(0,0,0,.1);border-radius:4px;margin-top:10px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,'+r.c2+','+r.color+')"></div></div><div style="font-size:.64rem;color:var(--text-light);margin-top:3px">'+(r.nextAt-d.leaguePoints)+' '+I18N.t('duel_points')+' → '+rankFor(r.nextAt).name+'</div>':'<div style="font-size:.64rem;color:var(--text-light);margin-top:8px">'+I18N.t('duel_maxtier')+'</div>')+
+      '<div style="font-size:.58rem;color:var(--accent);text-align:center;margin-top:7px;font-weight:800">👆 '+I18N.t('league_see_path')+'</div>';
+    $('duelHubLeague').style.cursor='pointer';$('duelHubLeague').onclick=showLeaguesPath;
     const total=d.duelWins+d.duelLosses+d.duelDraws;
     $('duelHubRecord').textContent=total?('🏆 '+d.duelWins+I18N.t('duel_w')+' · '+d.duelLosses+I18N.t('duel_l')+(d.duelDraws?' · '+d.duelDraws+I18N.t('duel_d'):'')):I18N.t('duel_no_games');}
 
@@ -4567,6 +4603,12 @@ const DuelManager=(function(){
     Object.assign(I18N.L.de,{dm_group:'Duelle',dm_wins:'Duell-Siege',dm_league:'In der Liga aufsteigen',dm_played:'Gespielte Duelle',unlock_duelwins:'{0} Duell-Siege',unlock_duelplayed:'{0} gespielte Duelle',stat_duel_wins:'Siege',stat_duel_losses:'Niederlagen',stat_duel_winrate:'Siegrate',stat_duel_played:'Gespielte Duelle',stat_duel_league:'Aktuelle Liga',stat_duel_best_league:'Beste Liga'});
     Object.assign(I18N.L.it,{dm_group:'Duelli',dm_wins:'Vittorie nei duelli',dm_league:'Salire di lega',dm_played:'Duelli giocati',unlock_duelwins:'{0} vittorie nei duelli',unlock_duelplayed:'{0} duelli giocati',stat_duel_wins:'Vittorie',stat_duel_losses:'Sconfitte',stat_duel_winrate:'% Vittorie',stat_duel_played:'Duelli giocati',stat_duel_league:'Lega attuale',stat_duel_best_league:'Lega migliore'});
     Object.assign(I18N.L.pt,{dm_group:'Duelos',dm_wins:'Vitórias em duelo',dm_league:'Subir de liga',dm_played:'Duelos jogados',unlock_duelwins:'{0} vitórias em duelo',unlock_duelplayed:'{0} duelos jogados',stat_duel_wins:'Vitórias',stat_duel_losses:'Derrotas',stat_duel_winrate:'% Vitória',stat_duel_played:'Duelos jogados',stat_duel_league:'Liga atual',stat_duel_best_league:'Melhor liga'});
+    Object.assign(I18N.L.en,{league_path:'League path',league_path_sub:'All leagues to reach',league_see_path:'See all leagues',convert_title:'Convert gems',convert_sub:'{0} yellow = 1 blue'});
+    Object.assign(I18N.L.fr,{league_path:'Parcours des ligues',league_path_sub:'Toutes les ligues à atteindre',league_see_path:'Voir toutes les ligues',convert_title:'Convertir des gemmes',convert_sub:'{0} jaunes = 1 bleue'});
+    Object.assign(I18N.L.es,{league_path:'Camino de ligas',league_path_sub:'Todas las ligas por alcanzar',league_see_path:'Ver todas las ligas',convert_title:'Convertir gemas',convert_sub:'{0} amarillas = 1 azul'});
+    Object.assign(I18N.L.de,{league_path:'Liga-Weg',league_path_sub:'Alle erreichbaren Ligen',league_see_path:'Alle Ligen ansehen',convert_title:'Edelsteine umwandeln',convert_sub:'{0} gelbe = 1 blauer'});
+    Object.assign(I18N.L.it,{league_path:'Percorso delle leghe',league_path_sub:'Tutte le leghe da raggiungere',league_see_path:'Vedi tutte le leghe',convert_title:'Converti gemme',convert_sub:'{0} gialle = 1 blu'});
+    Object.assign(I18N.L.pt,{league_path:'Caminho das ligas',league_path_sub:'Todas as ligas a alcançar',league_see_path:'Ver todas as ligas',convert_title:'Converter gemas',convert_sub:'{0} amarelas = 1 azul'});
     // ===== Noms d'emblèmes + bannières (i18n, repli anglais pour les autres langues) =====
     Object.assign(I18N.L.en,{emb_classic:'Crest',emb_crown:'Crown',emb_bolt:'Bolt',emb_flame:'Blaze',emb_shield_star:'Star',emb_diamond:'Gem',emb_laurel:'Laurels',emb_skull:'Skull',emb_heart:'Heart',emb_galaxy_emb:'Cosmos',emb_orbit:'Orbit',emb_sword:'Swords',emb_rocket:'Rocket',emb_trophy:'Trophy',emb_wing:'Wings',emb_leaf:'Nature',emb_moon:'Moon',emb_anchor:'Anchor',emb_phoenix:'Phoenix',emb_eye:'Mystic Eye',emb_compass:'Compass',ban_classic:'Cream',ban_sunset:'Twilight',ban_ocean:'Ocean',ban_forest:'Forest',ban_fire:'Inferno',ban_gold:'Royal Gold',ban_sakura:'Sakura',ban_neon:'Neon',ban_emerald:'Emerald',ban_royal:'Royal',ban_galaxy_ban:'Nebula',ban_aurora_dyn:'Aurora ✨',ban_nebula_dyn:'Living Galaxy ✨',ban_prism_dyn:'Prism ✨',ban_embers_dyn:'Embers ✨',ban_eclipse_ban:'Eclipse',ban_prism_ban:'Prism'});
     Object.assign(I18N.L.fr,{emb_classic:'Blason',emb_crown:'Couronne',emb_bolt:'Éclair',emb_flame:'Brasier',emb_shield_star:'Étoile',emb_diamond:'Gemme',emb_laurel:'Lauriers',emb_skull:'Crâne',emb_heart:'Cœur',emb_galaxy_emb:'Cosmos',emb_orbit:'Orbite',emb_sword:'Épées',emb_rocket:'Fusée',emb_trophy:'Trophée',emb_wing:'Ailes',emb_leaf:'Nature',emb_moon:'Lune',emb_anchor:'Ancre',emb_phoenix:'Phénix',emb_eye:'Œil Mystique',emb_compass:'Boussole',ban_classic:'Crème',ban_sunset:'Crépuscule',ban_ocean:'Océan',ban_forest:'Forêt',ban_fire:'Inferno',ban_gold:'Or Royal',ban_sakura:'Sakura',ban_neon:'Néon',ban_emerald:'Émeraude',ban_royal:'Royal',ban_galaxy_ban:'Nébuleuse',ban_aurora_dyn:'Aurore ✨',ban_nebula_dyn:'Galaxie Vivante ✨',ban_prism_dyn:'Prisme ✨',ban_embers_dyn:'Braises ✨',ban_eclipse_ban:'Éclipse',ban_prism_ban:'Prisme'});
