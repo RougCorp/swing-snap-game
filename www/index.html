@@ -120,6 +120,7 @@ input:checked+.toggle-slider:before{transform:translateX(20px)}
 @keyframes slideDown{from{opacity:0;transform:translateX(-50%) translateY(-20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 @keyframes pulseDot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.4);opacity:.7}}
 @keyframes fadeIn{0%{opacity:0}100%{opacity:1}}
+@keyframes milePop{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}60%{opacity:1;transform:translate(-50%,-50%) scale(1.12)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
 @keyframes loadSpin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
 @keyframes achievePop{0%{transform:translateY(20px);opacity:0}20%{transform:translateY(0);opacity:1}80%{transform:translateY(0);opacity:1}100%{transform:translateY(-20px);opacity:0}}
 @keyframes lifeAnim{0%{transform:translate(-50%,-50%) scale(1);opacity:1}70%{transform:translate(-50%,-180%) scale(1.3);opacity:.8}100%{transform:translate(-50%,-220%) scale(.7);opacity:0}}
@@ -591,6 +592,18 @@ function celebrate(kind){
   }else if(kind==='fire'){
     confetti({particleCount:150,spread:110,startVelocity:52,origin:{y:.52},scalar:1.1,colors:['#FF6D00','#FFD600','#FF3D00','#F4A926','#ffffff']});
   }
+}
+// Bannière de palier de score : gros nombre animé + libellé d'encouragement (mode normal)
+const _MILE_LABELS=['milestone_l1','milestone_l2','milestone_l3','milestone_l4'];
+function showMilestoneBanner(score){
+  const t=document.createElement('div');
+  const tier=score>=300?3:score>=200?2:score>=150?1:0;
+  const cols=[['#8E63B4','#F4A926'],['#26A69A','#80DEEA'],['#FF6D00','#FFD54F'],['#D14B63','#FFE082']][tier];
+  const lbl=I18N.t(_MILE_LABELS[Math.min(tier,3)]);
+  t.style.cssText='position:fixed;top:34%;left:50%;transform:translate(-50%,-50%);z-index:9998;pointer-events:none;text-align:center;animation:milePop .5s cubic-bezier(.2,1.4,.5,1)';
+  t.innerHTML='<div style="font-size:4.2rem;font-weight:900;line-height:1;background:linear-gradient(135deg,'+cols[0]+','+cols[1]+');-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 3px 12px rgba(0,0,0,.4))">'+score+'</div><div style="font-size:1rem;font-weight:900;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.6);letter-spacing:1px;margin-top:2px">'+lbl+'</div>';
+  document.body.appendChild(t);
+  setTimeout(()=>{t.style.transition='opacity .4s,transform .4s';t.style.opacity='0';t.style.transform='translate(-50%,-70%)';setTimeout(()=>t.remove(),400);},1100);
 }
 const showMissionBanner=(name,reward)=>{const t=document.createElement('div');t.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#8E63B4,#6A4C93);color:#fff;padding:10px 20px;border-radius:20px;font-size:.8rem;font-weight:900;z-index:9999;box-shadow:0 4px 20px rgba(142,99,180,0.5);text-align:center;max-width:280px;animation:slideDown .4s ease';t.innerHTML=`🎯 <b>${name}</b><br><span style="font-size:.75rem;opacity:.9">${reward}</span>`;document.body.appendChild(t);setTimeout(()=>{t.style.animation='slideUp .3s ease reverse';setTimeout(()=>t.remove(),300);},3000);};
 const todaySeed=()=>{const d=new Date();return d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();};
@@ -2274,7 +2287,7 @@ this._runStartTime=Date.now();
 updatePuInventoryHUD();
 this.mode=this.mode||'arcade';this.score=0;this.displayScore=0;this.gemsCollected=0;this.reviveAvailable=true;this.state='PLAYING';
 this.freeFrames=0;this.immuneFrames=0;this._wasComing=false;this._lastTierScore=-1;this.lastSnappedPivot=null;
-this.perfectChain=0;this.multiplier=1;this.allPerfect=true;
+this.perfectChain=0;this.multiplier=1;this.allPerfect=true;this._mileNext=100;this._mileSlow=0;
 $('hudMultiplier').style.display='none';
 // Time Attack: 60s countdown
 this.timeLeft=(this.mode==='timeattack')?60000:0;
@@ -2473,6 +2486,14 @@ if(isPerfect){
 this.score++;
 const bonus=this.multiplier-1;
 this.displayScore+=this.multiplier;
+// Paliers de score (mode normal) : à 100 puis tous les 50 → animation + léger ralenti "nouvel environnement"
+if((this.mode==='arcade'||this.mode==='timeattack')&&this.displayScore>=(this._mileNext||100)){
+  const reached=this._mileNext||100;this._mileNext=reached>=100?reached+50:100;
+  this._mileSlow=42;this.screenShake=Math.max(this.screenShake||0,12);
+  try{celebrate(reached>=200?'fire':'level');}catch(e){}
+  try{SoundManager.playSpeedUp&&SoundManager.playSpeedUp();}catch(e){}
+  try{showMilestoneBanner(reached);}catch(e){}
+}
 // Update multiplier HUD
 if(this.multiplier>1){
   const el=$('hudMultiplier');
@@ -2548,6 +2569,8 @@ async revive(){
 },
 loop(timestamp){
 let dt=(timestamp-this.lastTime)/16.67;if(dt>5)dt=1;this.lastTime=timestamp;
+// Ralenti de palier de score ("nouvel environnement") — décrémente en temps réel puis ralentit le jeu
+if(this._mileSlow>0){this._mileSlow-=dt;if(this._mileSlow<0)this._mileSlow=0;dt*=0.42;}
 SoundManager.update(dt);
 const _bg=this.player.bgSkins[DataManager.data.currentBg]||this.player.bgSkins['classic'];
 // Forcer init si: 1) resize, 2) background changé, 3) dimensions différentes, ou 4) jamais initialisé
@@ -4623,12 +4646,12 @@ const DuelManager=(function(){
     Object.assign(I18N.L.de,{dm_group:'Duelle',dm_wins:'Duell-Siege',dm_league:'In der Liga aufsteigen',dm_played:'Gespielte Duelle',unlock_duelwins:'{0} Duell-Siege',unlock_duelplayed:'{0} gespielte Duelle',stat_duel_wins:'Siege',stat_duel_losses:'Niederlagen',stat_duel_winrate:'Siegrate',stat_duel_played:'Gespielte Duelle',stat_duel_league:'Aktuelle Liga',stat_duel_best_league:'Beste Liga'});
     Object.assign(I18N.L.it,{dm_group:'Duelli',dm_wins:'Vittorie nei duelli',dm_league:'Salire di lega',dm_played:'Duelli giocati',unlock_duelwins:'{0} vittorie nei duelli',unlock_duelplayed:'{0} duelli giocati',stat_duel_wins:'Vittorie',stat_duel_losses:'Sconfitte',stat_duel_winrate:'% Vittorie',stat_duel_played:'Duelli giocati',stat_duel_league:'Lega attuale',stat_duel_best_league:'Lega migliore'});
     Object.assign(I18N.L.pt,{dm_group:'Duelos',dm_wins:'Vitórias em duelo',dm_league:'Subir de liga',dm_played:'Duelos jogados',unlock_duelwins:'{0} vitórias em duelo',unlock_duelplayed:'{0} duelos jogados',stat_duel_wins:'Vitórias',stat_duel_losses:'Derrotas',stat_duel_winrate:'% Vitória',stat_duel_played:'Duelos jogados',stat_duel_league:'Liga atual',stat_duel_best_league:'Melhor liga'});
-    Object.assign(I18N.L.en,{league_path:'League path',league_path_sub:'All leagues to reach',league_see_path:'See all leagues',convert_title:'Convert gems',convert_sub:'{0} yellow = 1 blue',tg_reach:'Reach {0}',tg_duelwins:'{0} duel wins',tg_duelplayed:'{0} duels played'});
-    Object.assign(I18N.L.fr,{league_path:'Parcours des ligues',league_path_sub:'Toutes les ligues à atteindre',league_see_path:'Voir toutes les ligues',convert_title:'Convertir des gemmes',convert_sub:'{0} jaunes = 1 bleue',tg_reach:'Atteindre {0}',tg_duelwins:'{0} victoires en duel',tg_duelplayed:'{0} duels joués'});
-    Object.assign(I18N.L.es,{league_path:'Camino de ligas',league_path_sub:'Todas las ligas por alcanzar',league_see_path:'Ver todas las ligas',convert_title:'Convertir gemas',convert_sub:'{0} amarillas = 1 azul',tg_reach:'Alcanzar {0}',tg_duelwins:'{0} victorias en duelo',tg_duelplayed:'{0} duelos jugados'});
-    Object.assign(I18N.L.de,{league_path:'Liga-Weg',league_path_sub:'Alle erreichbaren Ligen',league_see_path:'Alle Ligen ansehen',convert_title:'Edelsteine umwandeln',convert_sub:'{0} gelbe = 1 blauer',tg_reach:'{0} erreichen',tg_duelwins:'{0} Duell-Siege',tg_duelplayed:'{0} Duelle gespielt'});
-    Object.assign(I18N.L.it,{league_path:'Percorso delle leghe',league_path_sub:'Tutte le leghe da raggiungere',league_see_path:'Vedi tutte le leghe',convert_title:'Converti gemme',convert_sub:'{0} gialle = 1 blu',tg_reach:'Raggiungi {0}',tg_duelwins:'{0} vittorie nei duelli',tg_duelplayed:'{0} duelli giocati'});
-    Object.assign(I18N.L.pt,{league_path:'Caminho das ligas',league_path_sub:'Todas as ligas a alcançar',league_see_path:'Ver todas as ligas',convert_title:'Converter gemas',convert_sub:'{0} amarelas = 1 azul',tg_reach:'Alcançar {0}',tg_duelwins:'{0} vitórias em duelo',tg_duelplayed:'{0} duelos jogados'});
+    Object.assign(I18N.L.en,{league_path:'League path',league_path_sub:'All leagues to reach',league_see_path:'See all leagues',convert_title:'Convert gems',convert_sub:'{0} yellow = 1 blue',tg_reach:'Reach {0}',tg_duelwins:'{0} duel wins',tg_duelplayed:'{0} duels played',milestone_l1:'AMAZING!',milestone_l2:'ON FIRE!',milestone_l3:'LEGENDARY!',milestone_l4:'UNSTOPPABLE!'});
+    Object.assign(I18N.L.fr,{league_path:'Parcours des ligues',league_path_sub:'Toutes les ligues à atteindre',league_see_path:'Voir toutes les ligues',convert_title:'Convertir des gemmes',convert_sub:'{0} jaunes = 1 bleue',tg_reach:'Atteindre {0}',tg_duelwins:'{0} victoires en duel',tg_duelplayed:'{0} duels joués',milestone_l1:'INCROYABLE !',milestone_l2:'EN FEU !',milestone_l3:'LÉGENDAIRE !',milestone_l4:'INARRÊTABLE !'});
+    Object.assign(I18N.L.es,{league_path:'Camino de ligas',league_path_sub:'Todas las ligas por alcanzar',league_see_path:'Ver todas las ligas',convert_title:'Convertir gemas',convert_sub:'{0} amarillas = 1 azul',tg_reach:'Alcanzar {0}',tg_duelwins:'{0} victorias en duelo',tg_duelplayed:'{0} duelos jugados',milestone_l1:'¡INCREÍBLE!',milestone_l2:'¡EN LLAMAS!',milestone_l3:'¡LEGENDARIO!',milestone_l4:'¡IMPARABLE!'});
+    Object.assign(I18N.L.de,{league_path:'Liga-Weg',league_path_sub:'Alle erreichbaren Ligen',league_see_path:'Alle Ligen ansehen',convert_title:'Edelsteine umwandeln',convert_sub:'{0} gelbe = 1 blauer',tg_reach:'{0} erreichen',tg_duelwins:'{0} Duell-Siege',tg_duelplayed:'{0} Duelle gespielt',milestone_l1:'UNGLAUBLICH!',milestone_l2:'IN FLAMMEN!',milestone_l3:'LEGENDÄR!',milestone_l4:'UNAUFHALTSAM!'});
+    Object.assign(I18N.L.it,{league_path:'Percorso delle leghe',league_path_sub:'Tutte le leghe da raggiungere',league_see_path:'Vedi tutte le leghe',convert_title:'Converti gemme',convert_sub:'{0} gialle = 1 blu',tg_reach:'Raggiungi {0}',tg_duelwins:'{0} vittorie nei duelli',tg_duelplayed:'{0} duelli giocati',milestone_l1:'INCREDIBILE!',milestone_l2:'IN FIAMME!',milestone_l3:'LEGGENDARIO!',milestone_l4:'INARRESTABILE!'});
+    Object.assign(I18N.L.pt,{league_path:'Caminho das ligas',league_path_sub:'Todas as ligas a alcançar',league_see_path:'Ver todas as ligas',convert_title:'Converter gemas',convert_sub:'{0} amarelas = 1 azul',tg_reach:'Alcançar {0}',tg_duelwins:'{0} vitórias em duelo',tg_duelplayed:'{0} duelos jogados',milestone_l1:'INCRÍVEL!',milestone_l2:'PEGANDO FOGO!',milestone_l3:'LENDÁRIO!',milestone_l4:'IMPARÁVEL!'});
     // ===== Noms d'emblèmes + bannières (i18n, repli anglais pour les autres langues) =====
     Object.assign(I18N.L.en,{emb_classic:'Crest',emb_crown:'Crown',emb_bolt:'Bolt',emb_flame:'Blaze',emb_shield_star:'Star',emb_diamond:'Gem',emb_laurel:'Laurels',emb_skull:'Skull',emb_heart:'Heart',emb_galaxy_emb:'Cosmos',emb_orbit:'Orbit',emb_sword:'Swords',emb_rocket:'Rocket',emb_trophy:'Trophy',emb_wing:'Wings',emb_leaf:'Nature',emb_moon:'Moon',emb_anchor:'Anchor',emb_phoenix:'Phoenix',emb_eye:'Mystic Eye',emb_compass:'Compass',ban_classic:'Cream',ban_sunset:'Twilight',ban_ocean:'Ocean',ban_forest:'Forest',ban_fire:'Inferno',ban_gold:'Royal Gold',ban_sakura:'Sakura',ban_neon:'Neon',ban_emerald:'Emerald',ban_royal:'Royal',ban_galaxy_ban:'Nebula',ban_aurora_dyn:'Aurora ✨',ban_nebula_dyn:'Living Galaxy ✨',ban_prism_dyn:'Prism ✨',ban_embers_dyn:'Embers ✨',ban_eclipse_ban:'Eclipse',ban_prism_ban:'Prism'});
     Object.assign(I18N.L.fr,{emb_classic:'Blason',emb_crown:'Couronne',emb_bolt:'Éclair',emb_flame:'Brasier',emb_shield_star:'Étoile',emb_diamond:'Gemme',emb_laurel:'Lauriers',emb_skull:'Crâne',emb_heart:'Cœur',emb_galaxy_emb:'Cosmos',emb_orbit:'Orbite',emb_sword:'Épées',emb_rocket:'Fusée',emb_trophy:'Trophée',emb_wing:'Ailes',emb_leaf:'Nature',emb_moon:'Lune',emb_anchor:'Ancre',emb_phoenix:'Phénix',emb_eye:'Œil Mystique',emb_compass:'Boussole',ban_classic:'Crème',ban_sunset:'Crépuscule',ban_ocean:'Océan',ban_forest:'Forêt',ban_fire:'Inferno',ban_gold:'Or Royal',ban_sakura:'Sakura',ban_neon:'Néon',ban_emerald:'Émeraude',ban_royal:'Royal',ban_galaxy_ban:'Nébuleuse',ban_aurora_dyn:'Aurore ✨',ban_nebula_dyn:'Galaxie Vivante ✨',ban_prism_dyn:'Prisme ✨',ban_embers_dyn:'Braises ✨',ban_eclipse_ban:'Éclipse',ban_prism_ban:'Prisme'});
