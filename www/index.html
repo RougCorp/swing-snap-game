@@ -2215,7 +2215,9 @@ update(dt){let spd=this.getCurrentSpeed(Game.score);if(this.rope){this.angle+=sp
 draw(ctx){if(this.rope){ctx.beginPath();ctx.moveTo(this.rope.pos.x,this.rope.pos.y);ctx.lineTo(this.pos.x,this.pos.y);ctx.strokeStyle=CONFIG.colors.rope;ctx.lineWidth=2.5;ctx.stroke();}const ts=this.trailSkins[DataManager.data.currentTrail]||this.trailSkins['classic'];ctx.fillStyle=ts.color;this.trailArr.forEach(t=>ts.draw(ctx,t));const bs=this.ballSkins[DataManager.data.currentSkin]||this.ballSkins['classic'];
 // Halo lumineux coloré derrière la balle (rendu premium, valable pour tous les skins)
 ctx.save();ctx.translate(this.pos.x,this.pos.y);const _hg=ctx.createRadialGradient(0,0,2,0,0,22);_hg.addColorStop(0,bs.color);_hg.addColorStop(1,'rgba(0,0,0,0)');ctx.globalAlpha=.26;ctx.fillStyle=_hg;ctx.beginPath();ctx.arc(0,0,22,0,6.28);ctx.fill();ctx.restore();
-ctx.save();ctx.translate(this.pos.x,this.pos.y);ctx.rotate(Date.now()/250);ctx.shadowBlur=13;ctx.shadowColor=bs.color;ctx.fillStyle=bs.color;bs.draw(ctx);ctx.restore();}
+ctx.save();ctx.translate(this.pos.x,this.pos.y);ctx.rotate(Date.now()/250);ctx.shadowBlur=13;ctx.shadowColor=bs.color;ctx.fillStyle=bs.color;bs.draw(ctx);ctx.restore();
+// Reflet spéculaire (lumière fixe en haut-gauche) → tous les skins paraissent vernis/3D
+ctx.save();ctx.translate(this.pos.x,this.pos.y);const _sp=ctx.createRadialGradient(-3.5,-4,0,-3.5,-4,4.5);_sp.addColorStop(0,'rgba(255,255,255,.65)');_sp.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=_sp;ctx.beginPath();ctx.arc(-3.5,-4,4.5,0,6.28);ctx.fill();ctx.restore();}
 }
 
 // === GAME CLASS ===
