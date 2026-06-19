@@ -23,6 +23,10 @@ end
 target 'App' do
   capacitor_pods
   # Add your Pods here
+  # Épingle GoogleUserMessagingPlatform en 2.x : @capacitor-community/admob 6.2.0
+  # utilise l'ancien symbole `UMPConsentStatus`, supprimé dans UMP 3.0 (renommé `ConsentStatus`).
+  # Sans ce pin, le `pod install` à neuf de Xcode Cloud récupère UMP 3.1.0 → échec de compilation.
+  pod 'GoogleUserMessagingPlatform', '~> 2.3'
 end
 
 post_install do |installer|
