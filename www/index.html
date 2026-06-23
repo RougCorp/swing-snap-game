@@ -2645,8 +2645,8 @@ for(const k in this.activePowerups){if(this.activePowerups[k]>0&&this.activePowe
 updatePowerupHUD(this.activePowerups);
 // Anti-occlusion : si la balle OU le pivot cible passe derrière les boutons d'atouts,
 // on les atténue + on désactive leurs taps (le tap traverse → le joueur peut lâcher la corde).
-{const _pui=$('hudPUInventory');if(_pui&&_pui.style.display!=='none'){const r=_pui.getBoundingClientRect();
-  if(r.width){const _near=p=>p&&p.x>r.left-26&&p.x<r.right+26&&p.y>r.top-26&&p.y<r.bottom+26;
+{const _pui=$('hudPUInventory');if(_pui&&_pui.style.display!=='none'){const r=Game._puRect;
+  if(r&&r.width){const _near=p=>p&&p.x>r.left-26&&p.x<r.right+26&&p.y>r.top-26&&p.y<r.bottom+26;
     const _tgt=this.pivots.find(p=>p.isTarget);
     const _hide=_near(this.player.pos)||(_tgt&&_near(_tgt.pos));
     _pui.style.opacity=_hide?'.16':'1';_pui.style.pointerEvents=_hide?'none':'auto';}}}
@@ -2844,7 +2844,10 @@ for(const [k,icon,color] of _order){
   btn.innerHTML=`<span style="font-size:1.2rem;line-height:1">${icon}</span><span style="font-size:.6rem;color:${color}">x${cnt}</span>`;
   btn.onclick=(function(type){return function(){activateStoredPU(type);};})(k);
   el.appendChild(btn);
-}}
+}
+// cache la position des boutons (évite un getBoundingClientRect par frame = saccades)
+try{Game._puRect=el.getBoundingClientRect();}catch(e){}
+}
 function activateStoredPU(type){
 if(Game.state!=='PLAYING')return;
 // Protection contre activation accidentelle au démarrage (touch carry-over)
@@ -4480,20 +4483,29 @@ const DuelManager=(function(){
   // varient selon le palier → chaque division a son ambiance, identique pour tous ses joueurs.
   function _hx(h){h=(h||'#888888').replace('#','');return [parseInt(h.slice(0,2),16)||0,parseInt(h.slice(2,4),16)||0,parseInt(h.slice(4,6),16)||0];}
   function drawUniverse(c,w,h,t,now){
-    const idx=Math.max(0,TIERS.indexOf(t)),col=t.color,c2=t.c2,rgb=_hx(col);
-    const base=c.createLinearGradient(0,0,0,h);
-    base.addColorStop(0,'rgb('+(rgb[0]*.22|0)+','+(rgb[1]*.22|0)+','+(rgb[2]*.22|0)+')');
-    base.addColorStop(.55,'#0a0a12');base.addColorStop(1,'#050509');
-    c.fillStyle=base;c.fillRect(0,0,w,h);
-    const t2=now/9000;
-    [[col,.18,.30+(idx%3)*.18,.34,.42],[c2,.16,.72-(idx%2)*.22,.66,.5]].forEach(([cc,al,px,py,rf],k)=>{
-      const cx=px*w+Math.sin(t2+k*2)*w*.04,cy=py*h+Math.cos(t2*.8+k)*h*.03,rad=Math.max(w,h)*rf;
-      const ng=c.createRadialGradient(cx,cy,0,cx,cy,rad);ng.addColorStop(0,cc);ng.addColorStop(.38,cc);ng.addColorStop(1,'rgba(0,0,0,0)');
-      c.save();c.globalAlpha=al;c.fillStyle=ng;c.fillRect(0,0,w,h);c.restore();});
+    const col=t.color;
+    // Les couches statiques (dégradés, nébuleuses, orbite, vignette) sont coûteuses → on les
+    // génère UNE fois dans un canvas hors-écran (cache par taille+palier) et on les blitte ensuite.
+    const key=w+'x'+h+'/'+t.id;
+    if(M._uCacheKey!==key){
+      const oc=M._uCache||document.createElement('canvas');oc.width=w;oc.height=h;const g=oc.getContext('2d');
+      const idx=Math.max(0,TIERS.indexOf(t)),c2=t.c2,rgb=_hx(col);
+      const base=g.createLinearGradient(0,0,0,h);
+      base.addColorStop(0,'rgb('+(rgb[0]*.22|0)+','+(rgb[1]*.22|0)+','+(rgb[2]*.22|0)+')');
+      base.addColorStop(.55,'#0a0a12');base.addColorStop(1,'#050509');
+      g.fillStyle=base;g.fillRect(0,0,w,h);
+      [[col,.18,.30+(idx%3)*.18,.34,.42],[c2,.16,.72-(idx%2)*.22,.66,.5]].forEach(([cc,al,px,py,rf])=>{
+        const cx=px*w,cy=py*h,rad=Math.max(w,h)*rf;
+        const ng=g.createRadialGradient(cx,cy,0,cx,cy,rad);ng.addColorStop(0,cc);ng.addColorStop(.38,cc);ng.addColorStop(1,'rgba(0,0,0,0)');
+        g.save();g.globalAlpha=al;g.fillStyle=ng;g.fillRect(0,0,w,h);g.restore();});
+      g.save();g.globalAlpha=.09;g.strokeStyle=col;g.lineWidth=2;g.beginPath();g.arc(w*(.28+(idx%4)*.14),h*.34,Math.min(w,h)*.55,0,6.28);g.stroke();g.restore();
+      const vig=g.createRadialGradient(w/2,h/2,Math.min(w,h)*.34,w/2,h/2,Math.max(w,h)*.66);
+      vig.addColorStop(0,'rgba(0,0,0,0)');vig.addColorStop(1,'rgba(0,0,0,.5)');g.fillStyle=vig;g.fillRect(0,0,w,h);
+      M._uCache=oc;M._uCacheKey=key;
+    }
+    c.drawImage(M._uCache,0,0,w,h);
+    // seules les étoiles scintillantes sont redessinées chaque frame (léger)
     c.save();for(let i=0;i<70;i++){const x=(i*9973%10000)/10000*w,y=(i*6151%10000)/10000*h,tw=.4+.6*Math.abs(Math.sin(now/700+i*1.3)),sz=(i%9===0?1.8:i%4===0?1.1:.65);c.globalAlpha=tw*(i%5===0?.9:.55);c.fillStyle=(i%7===0)?col:'#fff';c.beginPath();c.arc(x,y,sz,0,6.28);c.fill();}c.restore();
-    c.save();c.globalAlpha=.09;c.strokeStyle=col;c.lineWidth=2;c.beginPath();c.arc(w*(.28+(idx%4)*.14),h*.34,Math.min(w,h)*.55,0,6.28);c.stroke();c.restore();
-    const vig=c.createRadialGradient(w/2,h/2,Math.min(w,h)*.34,w/2,h/2,Math.max(w,h)*.66);
-    vig.addColorStop(0,'rgba(0,0,0,0)');vig.addColorStop(1,'rgba(0,0,0,.5)');c.fillStyle=vig;c.fillRect(0,0,w,h);
   }
 
   function render(now){const c=M.ctx;if(!c)return;const w=M.cssW,h=M.cssH;
@@ -4602,11 +4614,20 @@ const DuelManager=(function(){
     const you=Math.min(TARGET,M.P.score),opp=oppScore();
     const res=you>opp?'win':(you<opp?'lose':'draw'); // 1er à 30 OU plus de points au temps écoulé
     const d=ensureData();let delta=0;
+    const recordH2H=()=>{if(M.opp&&M.opp.uid){const h=d.h2h[M.opp.uid]||{name:M.opp.name,w:0,l:0,d:0};if(res==='win')h.w++;else if(res==='lose')h.l++;else h.d=(h.d||0)+1;h.name=M.opp.name;d.h2h[M.opp.uid]=h;}};
+    if(M.friendly){
+      // Match AMICAL (défi d'ami / duel privé live) : H2H seulement, AUCUN point de ligue
+      // ni stat classée → impossible de farmer l'élo entre amis (anti-triche).
+      recordH2H();DataManager.save();
+      try{FriendManager.syncProfile();}catch(e){}
+      if(M.live&&M.onFinishLive)try{M.onFinishLive(M.P.score,M.P.perfects);}catch(e){}
+      showResult(res,you,opp,0,true);
+      M.live=false;M.onRelease=null;M.onFinishLive=null;M.onScore=null;M.onAtout=null;return;
+    }
     if(res==='win'){d.duelWins++;delta=20;}else if(res==='lose'){d.duelLosses++;delta=-15;}else{d.duelDraws=(d.duelDraws||0)+1;delta=5;}
     d.leaguePoints=Math.max(0,(d.leaguePoints||0)+delta);
     d.duelBestLeague=Math.max(d.duelBestLeague||0,d.leaguePoints); // pour les missions "atteindre une ligue"
-    // H2H seulement vs joueurs identifiés (amis) — pas les bots
-    if(M.opp&&M.opp.uid){const h=d.h2h[M.opp.uid]||{name:M.opp.name,w:0,l:0,d:0};if(res==='win')h.w++;else if(res==='lose')h.l++;else h.d=(h.d||0)+1;h.name=M.opp.name;d.h2h[M.opp.uid]=h;}
+    recordH2H();
     try{if(typeof DuelMissions!=='undefined')DuelMissions.onDuel(res,you,d.leaguePoints);}catch(e){}
     DataManager.save();
     publishRun().catch(()=>{});
@@ -4615,7 +4636,7 @@ const DuelManager=(function(){
     showResult(res,you,opp,delta);
     M.live=false;M.onRelease=null;M.onFinishLive=null;M.onScore=null;M.onAtout=null;}
 
-  function showResult(res,you,opp,delta){
+  function showResult(res,you,opp,delta,friendly){
     const t={win:{i:'🏆',c:'#4CAF50',k:'duel_win'},lose:{i:'💔',c:'#E53935',k:'duel_lose'},draw:{i:'🤝',c:'#FF9800',k:'duel_draw'}}[res];
     $('duelResultIcon').textContent=t.i;
     const tt=$('duelResultTitle');tt.textContent=I18N.t(t.k);tt.style.color=t.c;
@@ -4624,8 +4645,10 @@ const DuelManager=(function(){
     sc.appendChild(mk(DataManager.data.playerName||I18N.t('name_placeholder'),DataManager.data.currentEmblem,you,you>=opp));
     const vs=document.createElement('div');vs.style.cssText='font-weight:900;color:var(--text-light)';vs.textContent='—';sc.appendChild(vs);
     sc.appendChild(mk(M.opp.name,M.opp.emblem,opp,opp>you));
-    const lg=$('duelResultLeague');const tier=tierFor(DataManager.data.leaguePoints);
-    lg.innerHTML=(delta>=0?'+':'')+delta+' <span style="opacity:.7">'+I18N.t('duel_points')+'</span> · <b style="color:'+tier.color+'">'+tier.name+'</b> ('+DataManager.data.leaguePoints+')';
+    const lg=$('duelResultLeague');
+    if(friendly){lg.innerHTML='<span style="opacity:.8">🤝 '+I18N.t('duel_friendly')+'</span>';}
+    else{const tier=tierFor(DataManager.data.leaguePoints);
+      lg.innerHTML=(delta>=0?'+':'')+delta+' <span style="opacity:.7">'+I18N.t('duel_points')+'</span> · <b style="color:'+tier.color+'">'+tier.name+'</b> ('+DataManager.data.leaguePoints+')';}
     $('duelCanvas').style.display='none';$('duelHud').style.display='none';$('duelQuitBtn').style.display='none';
     $('duelResult').style.display='flex';M.active=false;}
 
@@ -4643,7 +4666,7 @@ const DuelManager=(function(){
     }catch(e){}
     return null;}
 
-  function openMatchmaking(){ensureData();M.live=false;
+  function openMatchmaking(){ensureData();M.live=false;M.friendly=false; // match CLASSÉ (élo)
     document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
     $('duelMatchmaking').style.display='flex';$('duelMmText').textContent=I18N.t('duel_searching');
     M._mmStart=Date.now();M.state='matchmaking';
@@ -4657,14 +4680,14 @@ const DuelManager=(function(){
   function startBot(){clearInterval(M._mmTimer);M.state='matchmaking';M.opp=makeBot();M.seed=(Date.now()^(Math.random()*1e9))>>>0;$('duelMmText').textContent=I18N.t('duel_found');setTimeout(startPlay,500);}
 
   // Défier un ami : on rejoue son DERNIER run publié (vrai duel async) ; à défaut, un bot calibré à sa ligue, étiqueté à son nom (le H2H compte car opp.uid est défini).
-  async function challengeFriend(friend){ensureData();M.live=false;
+  async function challengeFriend(friend){ensureData();M.live=false;M.friendly=true; // défi d'ami → amical (pas d'élo)
     let run=null,seed=(Date.now()^(Math.random()*1e9))>>>0;
     try{const LB=(typeof WeeklyLeaderboard!=='undefined')?WeeklyLeaderboard:null;const db=LB&&LB._db;if(db&&friend.uid){const doc=await db.collection('duelQueue').doc(friend.uid).get();if(doc.exists){const v=doc.data();if(v.run&&v.seed!=null){run=v.run;seed=v.seed;}}}}catch(e){}
     M.opp={name:friend.name,emblem:friend.emblem||'classic',uid:friend.uid,leaguePoints:friend.leaguePoints||0,isBot:!run,run};
     M.seed=seed;$('duelMatchmaking').style.display='none';startPlay();}
 
   // ---- DUELS LIVE (RTDB) : fantôme piloté par les taps reçus en temps réel ----
-  function startLive(seed,opp,opts){opts=opts||{};M.live=true;M.onRelease=opts.onRelease||null;M.onFinishLive=opts.onFinish||null;M._onQuitLive=opts.onQuit||null;M.onScore=opts.onScore||null;M.onAtout=opts.onAtout||null;M.liveOppTaps=[];M.opp=opp;M.seed=seed;
+  function startLive(seed,opp,opts){opts=opts||{};M.live=true;M.friendly=true;M.onRelease=opts.onRelease||null; // duel privé/ami → amical (pas d'élo)M.onFinishLive=opts.onFinish||null;M._onQuitLive=opts.onQuit||null;M.onScore=opts.onScore||null;M.onAtout=opts.onAtout||null;M.liveOppTaps=[];M.opp=opp;M.seed=seed;
     $('duelMatchmaking').style.display='none';startPlay();}
   // Reconstruit le fantôme adverse à partir de ses taps connus (déterministe) → position/score live exacts.
   function setLiveOppTaps(taps){if(!M.live||!M.level||!M.ghost)return;M.liveOppTaps=(taps||[]).slice();
@@ -4680,7 +4703,7 @@ const DuelManager=(function(){
   function cancelMatchmaking(){clearInterval(M._mmTimer);M.state='idle';$('duelMatchmaking').style.display='none';openHub();}
 
   function quit(){const inProgress=(M.state==='playing'||M.state==='countdown');M.active=false;cancelAnimationFrame(M.raf);M.state='idle';if(M.live&&M._onQuitLive)try{M._onQuitLive();}catch(e){}
-    if(inProgress){const d=ensureData();d.leaguePoints=Math.max(0,(d.leaguePoints||0)-20);d.duelLosses=(d.duelLosses||0)+1;if(M.opp&&M.opp.uid){const h=d.h2h[M.opp.uid]||{name:M.opp.name,w:0,l:0,d:0};h.l++;h.name=M.opp.name;d.h2h[M.opp.uid]=h;}DataManager.save();try{FriendManager.syncProfile();}catch(e){}showToast(I18N.t('duel_quit_penalty'));}M.live=false;M.onRelease=null;M.onFinishLive=null;M._onQuitLive=null;M.onScore=null;M.onAtout=null;$('duelCanvas').style.display='none';$('duelHud').style.display='none';$('duelQuitBtn').style.display='none';$('duelResult').style.display='none';openHub();}
+    if(inProgress){const d=ensureData();if(!M.friendly){d.leaguePoints=Math.max(0,(d.leaguePoints||0)-20);d.duelLosses=(d.duelLosses||0)+1;}if(M.opp&&M.opp.uid){const h=d.h2h[M.opp.uid]||{name:M.opp.name,w:0,l:0,d:0};h.l++;h.name=M.opp.name;d.h2h[M.opp.uid]=h;}DataManager.save();try{FriendManager.syncProfile();}catch(e){}showToast(M.friendly?I18N.t('duel_quit_friendly'):I18N.t('duel_quit_penalty'));}M.live=false;M.onRelease=null;M.onFinishLive=null;M._onQuitLive=null;M.onScore=null;M.onAtout=null;$('duelCanvas').style.display='none';$('duelHud').style.display='none';$('duelQuitBtn').style.display='none';$('duelResult').style.display='none';openHub();}
 
   // Vue "parcours des ligues" : toutes les divisions Fer→Radiant, la tienne mise en avant.
   function showLeaguesPath(){const cur=rankFor(DataManager.data.leaguePoints);
@@ -4792,7 +4815,7 @@ const FriendManager=(function(){
   function myCode(){const u=uid();return u?codeFromUid(u):'------';}
 
   async function syncProfile(){try{const d=db(),u=uid();if(!d||!u)return;const dd=DataManager.data;const code=codeFromUid(u);
-    await d.collection('duelProfiles').doc(u).set({name:(dd.playerName||'Joueur').slice(0,20),emblem:dd.currentEmblem||'classic',banner:dd.currentBanner||'classic',leaguePoints:dd.leaguePoints||0,leaguePeriod:dd.leaguePeriod||0,code,ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    await d.collection('duelProfiles').doc(u).set({name:(dd.playerName||'Joueur').slice(0,20),emblem:dd.currentEmblem||'classic',banner:dd.currentBanner||'classic',leaguePoints:dd.leaguePoints||0,leaguePeriod:dd.leaguePeriod||0,duelWins:dd.duelWins||0,duelLosses:dd.duelLosses||0,code,ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
     await d.collection('friendCodes').doc(code).set({uid:u},{merge:true});}catch(e){}}
 
   async function addByCode(codeRaw){const code=(codeRaw||'').trim().toUpperCase();if(code.length!==6)return {ok:false,msg:I18N.t('friend_bad_code')};
@@ -4808,9 +4831,10 @@ const FriendManager=(function(){
 
   async function listFriends(){const d=db(),u=uid();if(!d||!u)return [];
     try{const snap=await d.collection('duelProfiles').doc(u).collection('friends').get();const out=[];
-      for(const doc of snap.docs){const fuid=doc.id;let prof={name:'Joueur',emblem:'classic',leaguePoints:0};
+      for(const doc of snap.docs){const fuid=doc.id;let prof={name:'Joueur',emblem:'classic',banner:'classic',leaguePoints:0};
         try{const p=await d.collection('duelProfiles').doc(fuid).get();if(p.exists)prof=Object.assign(prof,p.data());}catch(e){}
-        out.push({uid:fuid,name:prof.name,emblem:prof.emblem,leaguePoints:prof.leaguePoints||0});}
+        const inv=doc.data().invite; // invitation de défi reçue de cet ami (déposée dans MA fiche)
+        out.push({uid:fuid,name:prof.name,emblem:prof.emblem,banner:prof.banner||'classic',leaguePoints:prof.leaguePoints||0,wins:prof.duelWins||0,losses:prof.duelLosses||0,invite:(inv&&inv.at>Date.now()-120000)?inv:null});}
       return out;
     }catch(e){return [];}}
 
@@ -4826,21 +4850,57 @@ const FriendManager=(function(){
     if(!friends.length){empty.style.display='block';empty.textContent=db()?I18N.t('friend_none'):I18N.t('friend_offline');return;}
     empty.style.display='none';
     const h2h=DataManager.data.h2h||{};
-    friends.forEach(f=>{const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:10px;background:var(--card);border-radius:14px;padding:8px 10px;box-shadow:0 2px 8px rgba(0,0,0,.06)';
+    friends.forEach(f=>{const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:10px;background:var(--card);border-radius:14px;padding:8px 10px;box-shadow:0 2px 8px rgba(0,0,0,.06)'+(f.invite?';outline:2px solid #4CAF50':'');
       const cv=document.createElement('canvas');row.appendChild(cv);
-      const info=document.createElement('div');info.style.cssText='flex:1;min-width:0';
-      const rec=h2h[f.uid];const recTxt=rec?('<span style="color:#4CAF50">'+rec.w+'V</span> · <span style="color:#E53935">'+rec.l+'D</span>'+(rec.d?' · '+rec.d+'N':'')):I18N.t('friend_no_h2h');
+      const info=document.createElement('div');info.style.cssText='flex:1;min-width:0;cursor:pointer';
+      const rec=h2h[f.uid];const recTxt=f.invite?('<span style="color:#4CAF50">⚔️ '+I18N.t('friend_invite',f.name)+'</span>'):(rec?('<span style="color:#4CAF50">'+rec.w+'V</span> · <span style="color:#E53935">'+rec.l+'D</span>'+(rec.d?' · '+rec.d+'N':'')):I18N.t('friend_no_h2h'));
       info.innerHTML='<div style="font-weight:900;font-size:.9rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+f.name+'</div><div style="font-size:.7rem;color:var(--text-light);font-weight:700">'+recTxt+'</div>';
+      info.onclick=()=>showPlayerProfile(f); // clic sur le nom/stats → fiche profil
       row.appendChild(info);
-      const btn=document.createElement('button');btn.className='btn btn-primary';btn.style.cssText='width:auto;margin:0;padding:9px 14px;font-size:.85rem;flex-shrink:0';btn.textContent='⚔️';
-      btn.onclick=()=>{DuelManager.challengeFriend(f);};
+      const btn=document.createElement('button');btn.className='btn btn-primary';btn.style.cssText='width:auto;margin:0;padding:9px 14px;font-size:.85rem;flex-shrink:0'+(f.invite?';background:#4CAF50':'');btn.textContent=f.invite?'✅':'⚔️';
+      const canLive=(typeof LiveDuel!=='undefined'&&LiveDuel.available&&LiveDuel.available());
+      btn.onclick=()=>{
+        if(f.invite){LiveDuel.acceptInvite(f.uid,f.invite.code);} // accepter le défi reçu
+        else if(canLive){LiveDuel.challenge(f);}                  // proposer un duel LIVE à l'ami
+        else{DuelManager.challengeFriend(f);}                     // repli hors-ligne : duel async
+      };
       row.appendChild(btn);list.appendChild(row);
       try{const EM=(typeof EMBLEMS!=='undefined'?EMBLEMS:{});const emb=EM[f.emblem]||EM.classic;const dpr=window.devicePixelRatio||1;cv.width=40*dpr;cv.height=40*dpr;cv.style.cssText='width:40px;height:40px;background:rgba(255,255,255,.9);border-radius:50%;flex-shrink:0';const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.translate(20,20);c.scale(40/30,40/30);if(emb){c.fillStyle=emb.color;emb.draw(c);}}catch(e){}
     });}
 
+  // Fiche profil d'un joueur (bannière + emblème + ligue + V/D + win-rate + tête-à-tête)
+  function showPlayerProfile(f){
+    let m=$('playerProfileModal');
+    if(!m){m=document.createElement('div');m.id='playerProfileModal';m.style.cssText='display:none;position:fixed;inset:0;z-index:420;background:rgba(0,0,0,.6);backdrop-filter:blur(8px);align-items:center;justify-content:center;pointer-events:auto';m.onclick=(e)=>{if(e.target===m)m.style.display='none';};document.body.appendChild(m);}
+    const rank=DuelManager.rankFor(f.leaguePoints||0),rec=(DataManager.data.h2h||{})[f.uid];
+    const wins=f.wins||0,losses=f.losses||0,tot=wins+losses,wr=tot?Math.round(wins/tot*100):0;
+    m.innerHTML='';
+    const card=document.createElement('div');card.style.cssText='background:var(--card);border-radius:24px;width:90%;max-width:320px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.4);text-align:center';
+    const head=document.createElement('div');head.style.cssText='position:relative;height:96px';
+    const bn=document.createElement('canvas');bn.style.cssText='width:100%;height:96px;display:block';head.appendChild(bn);
+    const em=document.createElement('canvas');em.style.cssText='position:absolute;left:50%;bottom:-26px;transform:translateX(-50%);width:64px;height:64px;background:rgba(255,255,255,.95);border-radius:50%;box-shadow:0 4px 14px rgba(0,0,0,.3)';head.appendChild(em);
+    card.appendChild(head);
+    const body=document.createElement('div');body.style.cssText='padding:34px 18px 14px';
+    body.innerHTML='<div style="font-weight:900;font-size:1.1rem;color:var(--text)">'+f.name+'</div>'+
+      '<div style="margin:8px 0">'+DuelManager.rankBadgeHTML(rank,46)+'</div>'+
+      '<div style="font-weight:900;color:'+rank.color+';font-size:.95rem">'+rank.name+'</div>'+
+      '<div style="font-size:.72rem;color:var(--text-light);margin-bottom:12px">'+(f.leaguePoints||0)+' '+I18N.t('duel_points')+'</div>'+
+      '<div style="display:flex;justify-content:center;gap:18px;font-weight:900">'+
+        '<div><div style="font-size:1.2rem;color:#4CAF50">'+wins+'</div><div style="font-size:.6rem;color:var(--text-light)">'+I18N.t('stat_duel_wins')+'</div></div>'+
+        '<div><div style="font-size:1.2rem;color:#E53935">'+losses+'</div><div style="font-size:.6rem;color:var(--text-light)">'+I18N.t('stat_duel_losses')+'</div></div>'+
+        '<div><div style="font-size:1.2rem;color:var(--accent)">'+wr+'%</div><div style="font-size:.6rem;color:var(--text-light)">'+I18N.t('stat_duel_winrate')+'</div></div>'+
+      '</div>'+
+      (rec?'<div style="margin-top:12px;font-size:.78rem;color:var(--text-light)">'+I18N.t('profile_vs')+' <b style="color:#4CAF50">'+rec.w+'V</b> · <b style="color:#E53935">'+rec.l+'D</b>'+(rec.d?' · '+rec.d+'N':'')+'</div>':'');
+    card.appendChild(body);
+    const close=document.createElement('button');close.className='btn';close.style.cssText='width:calc(100% - 36px);margin:0 18px 16px';close.textContent=I18N.t('close');close.onclick=()=>m.style.display='none';
+    card.appendChild(close);m.appendChild(card);m.style.display='flex';
+    try{const dpr=window.devicePixelRatio||1,BN=(typeof BANNERS!=='undefined'?BANNERS:{}),ban=BN[f.banner]||BN.classic;bn.width=300*dpr;bn.height=96*dpr;const bc=bn.getContext('2d');bc.setTransform(dpr,0,0,dpr,0,0);if(ban&&ban.draw)ban.draw(bc,300,96);}catch(e){}
+    try{drawEmb(em,f.emblem,64);}catch(e){}
+  }
+
   if(typeof I18N!=='undefined'&&I18N.L){
-    Object.assign(I18N.L.fr,{duel_friends:'Amis',friend_your_code:'Ton code ami',friend_share_hint:'Partage-le pour qu\'on t\'ajoute',friend_none:'Aucun ami pour l\'instant. Partage ton code !',friend_offline:'Connexion requise pour les amis',friend_bad_code:'Code à 6 caractères',friend_notfound:'Code introuvable',friend_self:'C\'est ton propre code 😅',friend_added:'Ami ajouté !',friend_no_h2h:'Jamais affrontés'});
-    Object.assign(I18N.L.en,{duel_friends:'Friends',friend_your_code:'Your friend code',friend_share_hint:'Share it so people can add you',friend_none:'No friends yet. Share your code!',friend_offline:'Connection required for friends',friend_bad_code:'6-character code',friend_notfound:'Code not found',friend_self:'That\'s your own code 😅',friend_added:'Friend added!',friend_no_h2h:'Never faced'});
+    Object.assign(I18N.L.fr,{duel_friends:'Amis',friend_your_code:'Ton code ami',friend_share_hint:'Partage-le pour qu\'on t\'ajoute',friend_none:'Aucun ami pour l\'instant. Partage ton code !',friend_offline:'Connexion requise pour les amis',friend_bad_code:'Code à 6 caractères',friend_notfound:'Code introuvable',friend_self:'C\'est ton propre code 😅',friend_added:'Ami ajouté !',friend_no_h2h:'Jamais affrontés',friend_invite:'{0} te défie !',friend_challenge_sent:'Défi envoyé à {0} — en attente…',duel_friendly:'Match amical · pas de points de ligue',duel_quit_friendly:'Duel amical quitté',profile_vs:'Face à face :'});
+    Object.assign(I18N.L.en,{duel_friends:'Friends',friend_your_code:'Your friend code',friend_share_hint:'Share it so people can add you',friend_none:'No friends yet. Share your code!',friend_offline:'Connection required for friends',friend_bad_code:'6-character code',friend_notfound:'Code not found',friend_self:'That\'s your own code 😅',friend_added:'Friend added!',friend_no_h2h:'Never faced',friend_invite:'{0} challenges you!',friend_challenge_sent:'Challenge sent to {0} — waiting…',duel_friendly:'Friendly match · no league points',duel_quit_friendly:'Friendly duel left',profile_vs:'Head-to-head:'});
   }
 
   function init(){
@@ -4970,6 +5030,25 @@ const LiveDuel=(function(){
     catch(e){showToast(I18N.t('live_offline'));cleanup(false);return;}
     beginDuel(room.seed,{name:room.host.name,emblem:room.host.emblem,uid:room.host.uid,leaguePoints:room.host.leaguePoints||0});}
 
+  function fsdb(){return (typeof WeeklyLeaderboard!=='undefined')?WeeklyLeaderboard._db:null;}
+  function available(){return !!rtdb();}
+  // Défier un AMI : crée un salon live + dépose une invitation dans la fiche d'ami du destinataire
+  // (Firestore, sous .../friends/{moi} — règle déjà permissive), puis attend qu'il accepte.
+  async function challenge(friend){const db=rtdb(),u=uid();if(!db||!u||!friend||!friend.uid){showToast(I18N.t('live_offline'));return;}
+    cleanup(true);
+    const code=String(1000+Math.floor(Math.random()*9000));
+    const seed=(Date.now()^(Math.random()*1e9))>>>0;
+    S.code=code;S.role='host';S.roomRef=db.ref('duelRooms/'+code);S._inviteTo=friend.uid;
+    try{await S.roomRef.set({host:myProfile(),seed,state:'waiting',created:firebase.database.ServerValue.TIMESTAMP});}
+    catch(e){showToast(I18N.t('live_offline'));cleanup(false);return;}
+    try{const fs=fsdb();if(fs)await fs.collection('duelProfiles').doc(friend.uid).collection('friends').doc(u).set({invite:{code,seed,from:myProfile().name,at:Date.now()}},{merge:true});}catch(e){}
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$('privateDuelScreen').classList.add('active');showWaiting(code);
+    showToast(I18N.t('friend_challenge_sent',friend.name));
+    watch(S.roomRef.child('guest'),'value',snap=>{const g=snap.val();if(g&&g.uid&&g.uid!==u&&!S.started){S.oppUid=g.uid;clearMyInvite();beginDuel(seed,{name:g.name,emblem:g.emblem,uid:g.uid,leaguePoints:g.leaguePoints||0});}});}
+  function clearMyInvite(){try{const fs=fsdb(),u=uid();if(fs&&u&&S._inviteTo)fs.collection('duelProfiles').doc(S._inviteTo).collection('friends').doc(u).update({invite:firebase.firestore.FieldValue.delete()});}catch(e){}S._inviteTo=null;}
+  // Accepter une invitation reçue (depuis la liste d'amis) : rejoint le salon + efface l'invitation.
+  function acceptInvite(fromUid,code){try{const fs=fsdb(),u=uid();if(fs&&u&&fromUid)fs.collection('duelProfiles').doc(u).collection('friends').doc(fromUid).update({invite:firebase.firestore.FieldValue.delete()});}catch(e){}join(code);}
+
   function showWaiting(code){$('liveIdle').style.display='none';$('liveWaiting').style.display='block';$('liveCodeShow').textContent=code;}
   function showIdle(){$('liveWaiting').style.display='none';$('liveIdle').style.display='flex';const i=$('liveCodeInput');if(i)i.value='';}
   function open(){cleanup(true);document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$('privateDuelScreen').classList.add('active');showIdle();
@@ -4989,7 +5068,7 @@ const LiveDuel=(function(){
     const lc=$('liveClose');if(lc)lc.onclick=()=>{cleanup(true);$('privateDuelScreen').classList.remove('active');DuelManager.openHub();};
   }
   if(document.readyState!=='loading')setTimeout(init,0);else document.addEventListener('DOMContentLoaded',init);
-  return {open,create,join};
+  return {open,create,join,challenge,acceptInvite,available};
 })();
 </script>
 
