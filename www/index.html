@@ -4574,7 +4574,9 @@ const DuelManager=(function(){
 
   function loop(now){if(!M.active)return;const dt=Math.min(64,now-(M._last||now));M._last=now;
     if(M.state==='countdown'){M._cd-=dt;const n=Math.ceil(M._cd/700);const cd=$('duelCountdown');cd.style.display='flex';cd.textContent=n>0?n:'GO!';if(M._cd<=-300){cd.style.display='none';M.state='playing';M._acc=0;}render(now);M.raf=requestAnimationFrame(loop);return;}
-    if(M.state==='playing'){M._acc+=dt;M._elapsed=(M._elapsed||0)+dt;
+    if(M.state==='playing'){
+      if(M.paused||M.oppPaused){render(now);M.raf=requestAnimationFrame(loop);return;} // gel total pendant la pause (les deux joueurs)
+      M._acc+=dt;M._elapsed=(M._elapsed||0)+dt;
       // atouts du BOT : ralenti programmé sur le joueur + flash quand son ×2 démarre (score déjà calculé dans la sim)
       if(M.ghost&&M.ghost.bot){
         if(!M._botSlowUsed&&M._botSlowAt&&M._elapsed>=M._botSlowAt){M._botSlowUsed=true;M._playerSlowFrames=SLOW_FRAMES;flash(I18N.t('duel_slowed'),'#4FC3F7');}
@@ -4600,6 +4602,7 @@ const DuelManager=(function(){
     M.ghostFrame=0;M.camX=p0.x;M.camY=p0.y;M._release=false;M._cd=2100;M.state='countdown';M.active=true;M._last=0;M._oppFinished=false;
     M._elapsed=0;M._slowFrames=0;M._slowUsed=false;M._x2Used=false;
     M._playerSlowFrames=0;M._botSlowUsed=false;M._botX2Flashed=false;
+    M.paused=false;M.oppPaused=false;hidePauseOverlay();
     M._botSlowAt=(M.ghost&&M.ghost.bot)?(40000+Math.random()*70000):0; // le bot ralentit le joueur 1× à un moment aléatoire (40–110 s)
     fillTag('duelYouTag',DataManager.data.playerName||I18N.t('name_placeholder'),DataManager.data.currentEmblem,0);
     fillTag('duelOppTag',M.opp.name,M.opp.emblem,0);
@@ -4643,10 +4646,10 @@ const DuelManager=(function(){
     showResult(res,you,opp,delta);
     M.live=false;M.onRelease=null;M.onFinishLive=null;M.onScore=null;M.onAtout=null;}
 
-  function showResult(res,you,opp,delta,friendly){
+  function showResult(res,you,opp,delta,friendly,oppLeft){
     const t={win:{i:'🏆',c:'#4CAF50',k:'duel_win'},lose:{i:'💔',c:'#E53935',k:'duel_lose'},draw:{i:'🤝',c:'#FF9800',k:'duel_draw'}}[res];
-    $('duelResultIcon').textContent=t.i;
-    const tt=$('duelResultTitle');tt.textContent=I18N.t(t.k);tt.style.color=t.c;
+    $('duelResultIcon').textContent=oppLeft?'🏳️':t.i;
+    const tt=$('duelResultTitle');tt.textContent=oppLeft?I18N.t('duel_opp_left'):I18N.t(t.k);tt.style.color=t.c;
     const sc=$('duelResultScores');sc.innerHTML='';
     const mk=(name,embId,score,win)=>{const b=document.createElement('div');b.style.cssText='display:flex;flex-direction:column;align-items:center;gap:4px;'+(win?'transform:scale(1.08)':'opacity:.85');const cv=document.createElement('canvas');drawEmb(cv,embId,44);b.appendChild(cv);const nm=document.createElement('div');nm.style.cssText='font-size:.72rem;font-weight:800;color:var(--text);max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';nm.textContent=name;b.appendChild(nm);const s=document.createElement('div');s.style.cssText='font-size:1.5rem;font-weight:900;color:'+(win?'#4CAF50':'var(--text)');s.textContent=score;b.appendChild(s);return b;};
     sc.appendChild(mk(DataManager.data.playerName||I18N.t('name_placeholder'),DataManager.data.currentEmblem,you,you>=opp));
@@ -4695,7 +4698,7 @@ const DuelManager=(function(){
 
   // ---- DUELS LIVE (RTDB) : fantôme piloté par les taps reçus en temps réel ----
   // duel privé/ami → amical (pas d'élo)
-  function startLive(seed,opp,opts){opts=opts||{};M.live=true;M.friendly=true;M.onRelease=opts.onRelease||null;M.onFinishLive=opts.onFinish||null;M._onQuitLive=opts.onQuit||null;M.onScore=opts.onScore||null;M.onAtout=opts.onAtout||null;M.liveOppTaps=[];M.opp=opp;M.seed=seed;
+  function startLive(seed,opp,opts){opts=opts||{};M.live=true;M.friendly=true;M.onRelease=opts.onRelease||null;M.onFinishLive=opts.onFinish||null;M._onQuitLive=opts.onQuit||null;M._onLeaveLive=opts.onLeave||null;M.onPause=opts.onPause||null;M.onScore=opts.onScore||null;M.onAtout=opts.onAtout||null;M.liveOppTaps=[];M.opp=opp;M.seed=seed;
     $('duelMatchmaking').style.display='none';startPlay();}
   // Reconstruit le fantôme adverse à partir de ses taps connus (déterministe) → position/score live exacts.
   function setLiveOppTaps(taps){if(!M.live||!M.level||!M.ghost)return;M.liveOppTaps=(taps||[]).slice();
@@ -4711,7 +4714,41 @@ const DuelManager=(function(){
   function cancelMatchmaking(){clearInterval(M._mmTimer);M.state='idle';$('duelMatchmaking').style.display='none';openHub();}
 
   function quit(){const inProgress=(M.state==='playing'||M.state==='countdown');M.active=false;cancelAnimationFrame(M.raf);M.state='idle';if(M.live&&M._onQuitLive)try{M._onQuitLive();}catch(e){}
-    if(inProgress){const d=ensureData();if(!M.friendly){d.leaguePoints=Math.max(0,(d.leaguePoints||0)-20);d.duelLosses=(d.duelLosses||0)+1;}if(M.opp&&M.opp.uid){const h=d.h2h[M.opp.uid]||{name:M.opp.name,w:0,l:0,d:0};h.l++;h.name=M.opp.name;d.h2h[M.opp.uid]=h;}DataManager.save();try{FriendManager.syncProfile();}catch(e){}showToast(M.friendly?I18N.t('duel_quit_friendly'):I18N.t('duel_quit_penalty'));}M.live=false;M.onRelease=null;M.onFinishLive=null;M._onQuitLive=null;M.onScore=null;M.onAtout=null;$('duelCanvas').style.display='none';$('duelHud').style.display='none';$('duelQuitBtn').style.display='none';$('duelResult').style.display='none';openHub();}
+    if(inProgress){const d=ensureData();if(!M.friendly){d.leaguePoints=Math.max(0,(d.leaguePoints||0)-20);d.duelLosses=(d.duelLosses||0)+1;}if(M.opp&&M.opp.uid){const h=d.h2h[M.opp.uid]||{name:M.opp.name,w:0,l:0,d:0};h.l++;h.name=M.opp.name;d.h2h[M.opp.uid]=h;}DataManager.save();try{FriendManager.syncProfile();}catch(e){}showToast(M.friendly?I18N.t('duel_quit_friendly'):I18N.t('duel_quit_penalty'));}M.live=false;M.onRelease=null;M.onFinishLive=null;M._onQuitLive=null;M._onLeaveLive=null;M.onScore=null;M.onAtout=null;M.onPause=null;M.paused=false;M.oppPaused=false;hidePauseOverlay();$('duelCanvas').style.display='none';$('duelHud').style.display='none';$('duelQuitBtn').style.display='none';$('duelResult').style.display='none';openHub();}
+
+  // ── PAUSE / ABANDON synchronisés (duel live) ──────────────────────────────
+  function hidePauseOverlay(){const n=$('duelPause');if(n)n.style.display='none';}
+  function showPauseOverlay(mode){
+    let n=$('duelPause');
+    if(!n){n=document.createElement('div');n.id='duelPause';n.style.cssText='display:none;position:fixed;inset:0;z-index:210;background:rgba(8,6,18,.8);backdrop-filter:blur(6px);align-items:center;justify-content:center;pointer-events:auto;color:#fff;text-align:center';document.body.appendChild(n);}
+    if(mode==='opp'){
+      n.innerHTML='<div><div style="font-size:2.6rem;margin-bottom:8px">⏸</div><div style="font-weight:900;font-size:1.15rem">'+I18N.t('duel_opp_paused')+'</div><div style="opacity:.7;font-size:.82rem;margin-top:6px">'+I18N.t('duel_wait')+'</div></div>';
+    }else{
+      const q=M.friendly?I18N.t('duel_quit_friendly_q'):I18N.t('duel_quit_online_q');
+      n.innerHTML='<div style="display:flex;flex-direction:column;gap:14px;align-items:center"><div style="font-size:2.6rem">⏸</div><div style="font-weight:900;font-size:1.35rem">'+I18N.t('duel_paused')+'</div>'+
+        '<button id="dpResume" class="btn btn-primary" style="width:230px;margin:0">▶ '+I18N.t('duel_resume')+'</button>'+
+        '<button id="dpQuit" class="btn" style="width:230px;margin:0;background:rgba(229,57,53,.9);color:#fff">✕ '+I18N.t('duel_quit_btn')+'</button>'+
+        '<div style="opacity:.72;font-size:.74rem;max-width:250px">'+q+'</div></div>';
+      $('dpResume').onclick=resumeDuel;$('dpQuit').onclick=doQuitDuel;
+    }
+    n.style.display='flex';
+  }
+  function pauseMenu(){if(M.state!=='playing'&&M.state!=='countdown')return;M.paused=true;if(M.live&&M.onPause)try{M.onPause(true);}catch(e){}showPauseOverlay('self');}
+  function resumeDuel(){M.paused=false;if(M.live&&M.onPause)try{M.onPause(false);}catch(e){}if(M.oppPaused)showPauseOverlay('opp');else hidePauseOverlay();M._last=0;}
+  function setOppPaused(b){M.oppPaused=!!b;if(b){if(!M.paused)showPauseOverlay('opp');}else{if(!M.paused)hidePauseOverlay();M._last=0;}}
+  function doQuitDuel(){hidePauseOverlay();if(M.live&&M._onLeaveLive)try{M._onLeaveLive();}catch(e){}quit();}
+  // L'adversaire a quitté → ta partie s'arrête. En ligne : victoire + petit gain. Amical/privé : rien.
+  function opponentLeft(){
+    if(M.state==='done'||M.state==='idle'||!M.opp)return;
+    M.state='done';M.active=false;cancelAnimationFrame(M.raf);M.paused=false;M.oppPaused=false;hidePauseOverlay();
+    const d=ensureData();const you=Math.min(TARGET,(M.P&&M.P.score)||0);let gain=0;
+    if(!M.friendly){gain=8;d.duelWins=(d.duelWins||0)+1;d.leaguePoints=(d.leaguePoints||0)+gain;d.duelBestLeague=Math.max(d.duelBestLeague||0,d.leaguePoints);}
+    if(M.opp&&M.opp.uid){const h=d.h2h[M.opp.uid]||{name:M.opp.name,w:0,l:0,d:0};h.w++;h.name=M.opp.name;d.h2h[M.opp.uid]=h;}
+    DataManager.save();try{FriendManager.syncProfile();}catch(e){}
+    showResult('win',you,0,gain,M.friendly,true);
+    M.live=false;M.onRelease=null;M.onFinishLive=null;M.onScore=null;M.onAtout=null;M.onPause=null;
+    try{if(M._onQuitLive)M._onQuitLive();}catch(e){}M._onQuitLive=null;M._onLeaveLive=null;
+  }
 
   // Vue "parcours des ligues" : toutes les divisions Fer→Radiant, la tienne mise en avant.
   function showLeaguesPath(){const cur=rankFor(DataManager.data.leaguePoints);
@@ -4744,6 +4781,13 @@ const DuelManager=(function(){
   if(typeof I18N!=='undefined'&&I18N.L){
     Object.assign(I18N.L.fr,{duel_title:'DUEL',duel_quick:'Match rapide',duel_play_bot:'Jouer contre un bot',duel_cancel:'Annuler',duel_searching:'Recherche d\'un adversaire…',duel_botswitch:'Aucun joueur trouvé — affrontement d\'un bot…',duel_found:'Adversaire trouvé !',duel_win:'VICTOIRE !',duel_lose:'DÉFAITE',duel_draw:'ÉGALITÉ',duel_points:'pts',duel_rematch:'Revanche',duel_league:'Ligue',duel_w:'V',duel_l:'D',duel_d:'N',duel_no_games:'Aucun duel joué',duel_maxtier:'Palier maximum atteint 👑',duel_menu_btn:'DUELS',duel_quit_confirm:'Quitter le duel ? Tu perds 20 points de ligue. 💔',duel_quit_penalty:'Duel abandonné · −20 pts',duel_slow_on:'Adversaire ralenti !',duel_x2_on:'×2 activé !',duel_atout_slow:'Ralentir l\'adversaire (1×)',duel_atout_x2:'Double points · 10 s (1×)',duel_slowed:'Tu es ralenti !',duel_opp_x2:'Adversaire ×2 !'});
     Object.assign(I18N.L.en,{duel_title:'DUEL',duel_quick:'Quick match',duel_play_bot:'Play against a bot',duel_cancel:'Cancel',duel_searching:'Searching for an opponent…',duel_botswitch:'No player found — facing a bot…',duel_found:'Opponent found!',duel_win:'VICTORY!',duel_lose:'DEFEAT',duel_draw:'DRAW',duel_points:'pts',duel_rematch:'Rematch',duel_league:'League',duel_w:'W',duel_l:'L',duel_d:'D',duel_no_games:'No duels played',duel_maxtier:'Top tier reached 👑',duel_menu_btn:'DUELS',duel_quit_confirm:'Quit the duel? You lose 20 league points. 💔',duel_quit_penalty:'Duel abandoned · −20 pts',duel_slow_on:'Opponent slowed!',duel_x2_on:'×2 active!',duel_atout_slow:'Slow the opponent (1×)',duel_atout_x2:'Double points · 10s (1×)',duel_slowed:'You are slowed!',duel_opp_x2:'Opponent ×2!'});
+    // pause/abandon synchronisés
+    Object.assign(I18N.L.fr,{duel_paused:'En pause',duel_resume:'Reprendre',duel_quit_btn:'Quitter',duel_opp_paused:'Adversaire en pause',duel_wait:'Patiente…',duel_quit_friendly_q:'Quitter le duel amical ? Aucun point perdu.',duel_quit_online_q:'Quitter le duel classé ? Tu perds 20 points de ligue. 💔',duel_opp_left:'Adversaire parti'});
+    Object.assign(I18N.L.en,{duel_paused:'Paused',duel_resume:'Resume',duel_quit_btn:'Quit',duel_opp_paused:'Opponent paused',duel_wait:'Please wait…',duel_quit_friendly_q:'Leave the friendly duel? No points lost.',duel_quit_online_q:'Leave the ranked duel? You lose 20 league points. 💔',duel_opp_left:'Opponent left'});
+    if(I18N.L.es)Object.assign(I18N.L.es,{duel_paused:'En pausa',duel_resume:'Reanudar',duel_quit_btn:'Salir',duel_opp_paused:'Rival en pausa',duel_wait:'Espera…',duel_quit_friendly_q:'¿Salir del duelo amistoso? No pierdes puntos.',duel_quit_online_q:'¿Salir del duelo clasificado? Pierdes 20 puntos de liga. 💔',duel_opp_left:'El rival se fue'});
+    if(I18N.L.de)Object.assign(I18N.L.de,{duel_paused:'Pausiert',duel_resume:'Fortsetzen',duel_quit_btn:'Verlassen',duel_opp_paused:'Gegner pausiert',duel_wait:'Bitte warten…',duel_quit_friendly_q:'Freundschaftsduell verlassen? Keine Punkte verloren.',duel_quit_online_q:'Ranglistenduell verlassen? Du verlierst 20 Liga-Punkte. 💔',duel_opp_left:'Gegner hat verlassen'});
+    if(I18N.L.it)Object.assign(I18N.L.it,{duel_paused:'In pausa',duel_resume:'Riprendi',duel_quit_btn:'Esci',duel_opp_paused:'Avversario in pausa',duel_wait:'Attendi…',duel_quit_friendly_q:'Uscire dal duello amichevole? Nessun punto perso.',duel_quit_online_q:'Uscire dal duello classificato? Perdi 20 punti lega. 💔',duel_opp_left:'Avversario uscito'});
+    if(I18N.L.pt)Object.assign(I18N.L.pt,{duel_paused:'Em pausa',duel_resume:'Retomar',duel_quit_btn:'Sair',duel_opp_paused:'Adversário em pausa',duel_wait:'Aguarda…',duel_quit_friendly_q:'Sair do duelo amigável? Não perdes pontos.',duel_quit_online_q:'Sair do duelo classificado? Perdes 20 pontos de liga. 💔',duel_opp_left:'Adversário saiu'});
     // Traductions complètes (es/de/it/pt) — toutes les clés duel/amis/ligue/live. Les autres langues retombent sur l'anglais.
     Object.assign(I18N.L.es,{duel_title:'DUELO',duel_quick:'Partida rápida',duel_play_bot:'Jugar contra un bot',duel_cancel:'Cancelar',duel_searching:'Buscando un rival…',duel_found:'¡Rival encontrado!',duel_win:'¡VICTORIA!',duel_lose:'DERROTA',duel_draw:'EMPATE',duel_points:'pts',duel_rematch:'Revancha',duel_league:'Liga',duel_w:'V',duel_l:'D',duel_d:'E',duel_no_games:'Ningún duelo jugado',duel_maxtier:'Rango máximo alcanzado 👑',duel_menu_btn:'DUELOS',duel_friends:'Amigos',friend_your_code:'Tu código de amigo',friend_share_hint:'Compártelo para que te agreguen',friend_none:'Aún no tienes amigos. ¡Comparte tu código!',friend_offline:'Conexión necesaria para los amigos',friend_bad_code:'Código de 6 caracteres',friend_notfound:'Código no encontrado',friend_self:'Es tu propio código 😅',friend_added:'¡Amigo añadido!',friend_no_h2h:'Nunca enfrentados',league_board:'Clasificación de Liga',league_you:'tú',league_resets:'Reinicio en {0} día(s)',league_offline:'Conexión necesaria para la clasificación mundial',league_your_rank:'Tu rango',league_unranked:'—',live_title:'Duelo privado (en vivo)',live_create:'Crear una sala',live_or:'— o únete con un código —',live_code:'CÓDIGO DE SALA',live_waiting:'Esperando a un rival…',live_hint:'Enfréntate a un amigo en tiempo real en la misma arena.',live_offline:'Duelo en vivo no disponible (conexión / base en tiempo real)',live_bad_code:'Código de 4 dígitos',live_notfound:'Sala no encontrada',live_full:'La sala ya está llena',live_self:'Es tu propia sala 😅',duel_slow_on:'¡Rival ralentizado!',duel_x2_on:'¡×2 activado!',duel_atout_slow:'Ralentizar al rival (1×)',duel_atout_x2:'Puntos dobles · 10 s (1×)',duel_slowed:'¡Estás ralentizado!',duel_opp_x2:'¡Rival ×2!'});
     Object.assign(I18N.L.de,{duel_title:'DUELL',duel_quick:'Schnelles Match',duel_play_bot:'Gegen einen Bot spielen',duel_cancel:'Abbrechen',duel_searching:'Suche einen Gegner…',duel_found:'Gegner gefunden!',duel_win:'SIEG!',duel_lose:'NIEDERLAGE',duel_draw:'UNENTSCHIEDEN',duel_points:'Pkt',duel_rematch:'Revanche',duel_league:'Liga',duel_w:'S',duel_l:'N',duel_d:'U',duel_no_games:'Keine Duelle gespielt',duel_maxtier:'Höchster Rang erreicht 👑',duel_menu_btn:'DUELLE',duel_friends:'Freunde',friend_your_code:'Dein Freundescode',friend_share_hint:'Teile ihn, damit man dich hinzufügt',friend_none:'Noch keine Freunde. Teile deinen Code!',friend_offline:'Verbindung für Freunde erforderlich',friend_bad_code:'6-stelliger Code',friend_notfound:'Code nicht gefunden',friend_self:'Das ist dein eigener Code 😅',friend_added:'Freund hinzugefügt!',friend_no_h2h:'Nie gegeneinander',league_board:'Liga-Rangliste',league_you:'du',league_resets:'Zurücksetzen in {0} Tag(en)',league_offline:'Verbindung für die globale Rangliste erforderlich',league_your_rank:'Dein Rang',league_unranked:'—',live_title:'Privates Duell (live)',live_create:'Raum erstellen',live_or:'— oder mit Code beitreten —',live_code:'RAUMCODE',live_waiting:'Warte auf einen Gegner…',live_hint:'Tritt in Echtzeit gegen einen Freund in derselben Arena an.',live_offline:'Live-Duell nicht verfügbar (Verbindung / Echtzeit-DB)',live_bad_code:'4-stelliger Code',live_notfound:'Raum nicht gefunden',live_full:'Raum bereits voll',live_self:'Das ist dein eigener Raum 😅',duel_slow_on:'Gegner verlangsamt!',duel_x2_on:'×2 aktiv!',duel_atout_slow:'Gegner verlangsamen (1×)',duel_atout_x2:'Doppelte Punkte · 10 s (1×)',duel_slowed:'Du bist verlangsamt!',duel_opp_x2:'Gegner ×2!'});
@@ -4798,7 +4842,7 @@ const DuelManager=(function(){
     const cv=$('duelCanvas');
     cv.addEventListener('mousedown',tap);
     cv.addEventListener('touchstart',e=>{e.preventDefault();tap();},{passive:false});
-    $('duelQuitBtn').onclick=()=>{if(confirm(I18N.t('duel_quit_confirm')))quit();};
+    $('duelQuitBtn').onclick=pauseMenu;
     {const sb=$('duelSlowBtn'),xb=$('duelX2Btn');if(sb){sb.onclick=useSlow;sb.title=I18N.t('duel_atout_slow');}if(xb){xb.onclick=useX2;xb.title=I18N.t('duel_atout_x2');}}
     $('duelMmCancel').onclick=cancelMatchmaking;
     $('duelResultReplay').onclick=()=>{$('duelResult').style.display='none';openMatchmaking();};
@@ -4811,7 +4855,7 @@ const DuelManager=(function(){
     window.addEventListener('resize',()=>{if(M.active)mount();});
   }
   if(document.readyState!=='loading')setTimeout(init,0);else document.addEventListener('DOMContentLoaded',init);
-  return {openHub,openMatchmaking,challengeFriend,startLive,setLiveOppTaps,setOppFinal,setLiveOppScore,applyIncomingSlow,tierFor,rankFor,rankBadgeHTML,TIERS,_M:M};
+  return {openHub,openMatchmaking,challengeFriend,startLive,setLiveOppTaps,setOppFinal,setLiveOppScore,applyIncomingSlow,setOppPaused,opponentLeft,tierFor,rankFor,rankBadgeHTML,TIERS,_M:M};
 })();
 
 /* ===== FriendManager : amis (codes + liste + duels entre amis + H2H) ===== */
@@ -5044,13 +5088,18 @@ const LiveDuel=(function(){
       // score AUTORITAIRE de l'adversaire (gère le ×2 du perfect + atout ×2) et ses atouts (slow → me ralentit)
       watch(S.roomRef.child('score/'+S.oppUid),'value',snap=>{const v=snap.val();if(v!=null)DuelManager.setLiveOppScore(v);});
       watch(S.roomRef.child('atout/'+S.oppUid),'value',snap=>{const v=snap.val();if(v&&v.type==='slow')DuelManager.applyIncomingSlow();});
+      // pause synchronisée + abandon de l'adversaire
+      watch(S.roomRef.child('paused/'+S.oppUid),'value',snap=>{DuelManager.setOppPaused(!!snap.val());});
+      watch(S.roomRef.child('left/'+S.oppUid),'value',snap=>{if(snap.val())DuelManager.opponentLeft();});
     }
     DuelManager.startLive(seed,opp,{
       onRelease:(frame)=>{try{S.roomRef.child('taps/'+uid()).push(frame);}catch(e){}},
       onScore:(score)=>{try{S.roomRef.child('score/'+uid()).set(score);}catch(e){}},
       onAtout:(type)=>{try{S.roomRef.child('atout/'+uid()).set({type,ts:firebase.database.ServerValue.TIMESTAMP});}catch(e){}},
+      onPause:(b)=>{try{S.roomRef.child('paused/'+uid()).set(!!b);}catch(e){}},
+      onLeave:()=>{try{S.roomRef.child('left/'+uid()).set(true);}catch(e){}}, // prévient l'adversaire
       onFinish:(score,perfects)=>{try{S.roomRef.child('final/'+uid()).set({score,perfects});}catch(e){}},
-      onQuit:()=>{cleanup(true);}
+      onQuit:()=>{cleanup(false);} // on garde le salon le temps que l'adversaire lise 'left' (salon éphémère)
     });}
 
   async function create(){const db=rtdb(),u=uid();if(!db||!u){showToast(I18N.t('live_offline'));return;}
