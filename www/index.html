@@ -4373,7 +4373,7 @@ const DuelManager=(function(){
     const SIM=E.SIM,maxF=24000;
     let pivot=level[0],ti=1,attached=true,angle=0,hold=0,free=0,minD=Infinity,lastPerp=Infinity;
     let pos={x:pivot.x+SIM.ropeLength,y:pivot.y},vel={x:0,y:0};
-    let score=0,mult=1,frame=0,fumble=(Math.random()>skill);
+    let score=0,mult=1,pstreak=0,frame=0,fumble=(Math.random()>skill);
     const traj=[],scores=[];
     while(frame<maxF&&score<TARGET){
       const tp=level[ti];let release=false;
@@ -4389,10 +4389,10 @@ const DuelManager=(function(){
       else{pos.x+=vel.x;pos.y+=vel.y;free++;
         if(tp){const d=Math.hypot(pos.x-tp.x,pos.y-tp.y);
           if(d<SIM.snapRadius){attached=true;pivot=tp;angle=Math.atan2(pos.y-tp.y,pos.x-tp.x);
-            const half=Math.asin(Math.min(0.98,SIM.perfectRadius/SIM.snapRadius));mult=Math.abs(E.angDiff(angle,tp.coneAngle))<half?2:1;score+=mult;
+            const half=Math.asin(Math.min(0.98,SIM.perfectRadius/SIM.snapRadius));const perf=Math.abs(E.angDiff(angle,tp.coneAngle))<half;pstreak=perf?pstreak+1:0;mult=(pstreak>=3)?2:1;score+=mult;
             ti++;free=0;hold=0;minD=Infinity;lastPerp=Infinity;fumble=(Math.random()>skill);if(ti>=level.length)break;}
           else{minD=Math.min(minD,d);
-            if((d>minD+34&&minD>SIM.snapRadius)||d>SIM.snapRadius*8||free>420){score=Math.max(0,score-2);const cp=level[ti-1]||level[0];pivot=cp;attached=true;const a=Math.atan2(pos.y-cp.y,pos.x-cp.x)||0;angle=a;pos.x=cp.x+Math.cos(a)*SIM.ropeLength;pos.y=cp.y+Math.sin(a)*SIM.ropeLength;vel.x=0;vel.y=0;free=0;hold=0;minD=Infinity;lastPerp=Infinity;fumble=(Math.random()>skill);}}
+            if((d>minD+34&&minD>SIM.snapRadius)||d>SIM.snapRadius*8||free>420){score=Math.max(0,score-2);pstreak=0;const cp=level[ti-1]||level[0];pivot=cp;attached=true;const a=Math.atan2(pos.y-cp.y,pos.x-cp.x)||0;angle=a;pos.x=cp.x+Math.cos(a)*SIM.ropeLength;pos.y=cp.y+Math.sin(a)*SIM.ropeLength;vel.x=0;vel.y=0;free=0;hold=0;minD=Infinity;lastPerp=Infinity;fumble=(Math.random()>skill);}}
         } else break;
       }
       traj.push({x:pos.x,y:pos.y});scores.push(Math.min(TARGET,score));frame++;
@@ -4424,15 +4424,17 @@ const DuelManager=(function(){
         if(d<SIMc.snapRadius){P.attached=true;P.pivot=tp;P.angle=Math.atan2(P.pos.y-tp.y,P.pos.x-tp.x);P._minD=Infinity;
           const half=Math.asin(Math.min(0.98,SIMc.perfectRadius/SIMc.snapRadius));
           const perfect=Math.abs(E.angDiff(P.angle,tp.coneAngle))<half;
-          let gain=perfect?2:1;if(P._x2Frames>0)gain*=X2_MULT;P.mult=gain;P.score+=gain; // perfect=×2 ; atout ×2 double encore
-          if(perfect){P.perfects++;flash('PERFECT! ×2','#FFD54F');try{SoundManager.playPerfect();}catch(e){}}else{try{SoundManager.playSnap();}catch(e){}}
+          if(perfect)P.pstreak=(P.pstreak||0)+1;else P.pstreak=0;
+          const pMult=(P.pstreak>=3)?2:1; // ×2 perfect SEULEMENT à partir du 3e perfect d'affilée
+          let gain=pMult;if(P._x2Frames>0)gain*=X2_MULT;P.mult=gain;P.score+=gain; // atout ×2 par-dessus → ×4 max
+          if(perfect){P.perfects++;flash(gain>1?'PERFECT! ×'+gain:'PERFECT! '+P.pstreak+'/3','#FFD54F');try{SoundManager.playPerfect();}catch(e){}}else{try{SoundManager.playSnap();}catch(e){}}
           P.targetIdx++;P.freeFrames=0;P.holdFrames=0;
           if(P.score>=TARGET){P.ended=true;P.win=true;}
           else if(P.targetIdx>=level.length){P.ended=true;P.win=(P.score>=TARGET);}}
         else{P._minD=Math.min(P._minD==null?Infinity:P._minD,d);
           if((d>P._minD+34&&P._minD>SIMc.snapRadius)||d>SIMc.snapRadius*8||P.freeFrames>420){
             // RATÉ → respawn sur le pivot courant, −2 pts (esprit Blitz)
-            P.score=Math.max(0,P.score-2);P.mult=1;const cp=level[P.targetIdx-1]||level[0];P.pivot=cp;P.attached=true;
+            P.score=Math.max(0,P.score-2);P.mult=1;P.pstreak=0;const cp=level[P.targetIdx-1]||level[0];P.pivot=cp;P.attached=true;
             const a=Math.atan2(P.pos.y-cp.y,P.pos.x-cp.x)||0;P.angle=a;P.pos.x=cp.x+Math.cos(a)*SIMc.ropeLength;P.pos.y=cp.y+Math.sin(a)*SIMc.ropeLength;
             P.vel.x=0;P.vel.y=0;P.freeFrames=0;P.holdFrames=0;P._minD=Infinity;
             flash('−2','#E53935');try{SoundManager.playGameOver();}catch(e){}}}}
@@ -4515,7 +4517,8 @@ const DuelManager=(function(){
     $('duelYouTag').querySelector('.duel-score').textContent=Math.min(TARGET,P.score);
     $('duelOppTag').querySelector('.duel-score').textContent=Math.min(TARGET,g.scores[gf]||0);
     const remMs=Math.max(0,DURATION-(M._elapsed||0)),mm=Math.floor(remMs/60000),ss=Math.floor(remMs%60000/1000),low=remMs<30000;
-    $('duelProgress').innerHTML='<span style="font-size:1.15rem'+(low?';color:#FF7A7A':'')+'">⏱ '+mm+':'+(ss<10?'0':'')+ss+'</span>'+(P._x2Frames>0?' <span style="color:#FFD54F;font-weight:900">×2</span>':'');
+    const dispMult=((P.pstreak>=3)?2:1)*((P._x2Frames>0)?2:1);
+    $('duelProgress').innerHTML='<span style="font-size:1.15rem'+(low?';color:#FF7A7A':'')+'">⏱ '+mm+':'+(ss<10?'0':'')+ss+'</span>'+(dispMult>1?' <span style="color:#FFD54F;font-weight:900">×'+dispMult+'</span>':'')+(P._x2Frames>0?' <span style="opacity:.7;font-size:.7rem">⏳</span>':'');
     if(_flashT>0){_flashT--;if(_flashT===0)$('duelFlash').style.opacity='0';}}
 
   function loop(now){if(!M.active)return;const dt=Math.min(64,now-(M._last||now));M._last=now;
@@ -4536,7 +4539,7 @@ const DuelManager=(function(){
     M.level=E.generateDuelLevel(M.seed,GEN);
     M.ghost=buildGhost(M.level,M.opp,M.opp&&M.opp.run);
     const p0=M.level[0];
-    M.P={pivot:p0,targetIdx:1,attached:true,angle:0,holdFrames:0,freeFrames:0,pos:{x:p0.x+E.SIM.ropeLength,y:p0.y},vel:{x:0,y:0},score:0,perfects:0,mult:1,ended:false,win:false,_minD:Infinity,trail:[],_recordTaps:[],_frame:0,_x2Frames:0};
+    M.P={pivot:p0,targetIdx:1,attached:true,angle:0,holdFrames:0,freeFrames:0,pos:{x:p0.x+E.SIM.ropeLength,y:p0.y},vel:{x:0,y:0},score:0,perfects:0,mult:1,pstreak:0,ended:false,win:false,_minD:Infinity,trail:[],_recordTaps:[],_frame:0,_x2Frames:0};
     M.ghostFrame=0;M.camX=p0.x;M.camY=p0.y;M._release=false;M._cd=2100;M.state='countdown';M.active=true;M._last=0;M._oppFinished=false;
     M._elapsed=0;M._slowFrames=0;M._slowUsed=false;M._x2Used=false;
     fillTag('duelYouTag',DataManager.data.playerName||I18N.t('name_placeholder'),DataManager.data.currentEmblem,0);
