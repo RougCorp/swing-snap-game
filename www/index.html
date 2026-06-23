@@ -1634,18 +1634,19 @@ constructor(x,y,isTarget=false){this.pos=new Vector(x,y);this.isTarget=isTarget;
 draw(ctx){this.pulse+=.08;this.sc=Math.min(1,this.sc+.06);let e=1-Math.pow(1-this.sc,3);ctx.save();ctx.translate(this.pos.x,this.pos.y);ctx.scale(e,e);
 if(this.isTarget){
 const r=CONFIG.snapRadius+Math.sin(this.pulse)*4;
-// Outer snap zone (green) + liseré pour la rendre lisible sur tout fond
+// Zone de snap (verte) — DOUBLE liseré (sombre dessous + blanc dessus) → lisible sur fond clair ET sombre
 ctx.fillStyle=CONFIG.colors.targetRing;ctx.beginPath();ctx.arc(0,0,r,0,6.28);ctx.fill();
-ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=1.5;ctx.stroke();
-// Fixed perfect cone — static golden sector, player must snap from inside it
+ctx.lineWidth=3;ctx.strokeStyle='rgba(0,0,0,.32)';ctx.stroke();
+ctx.lineWidth=1.4;ctx.strokeStyle='rgba(255,255,255,.75)';ctx.stroke();
+// Cône parfait (doré) — fill plus marqué + bords/arc en double liseré (ressort sur fond jaune ET sombre)
 const halfCone=Math.asin(Math.min(0.98,CONFIG.perfectRadius/CONFIG.snapRadius));
 ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,r,this.coneAngle-halfCone,this.coneAngle+halfCone);ctx.closePath();
-ctx.fillStyle='rgba(255,195,40,0.30)';ctx.fill();
-ctx.strokeStyle='rgba(255,215,50,0.55)';ctx.lineWidth=1.5;ctx.lineCap='round';
-ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(this.coneAngle-halfCone)*r,Math.sin(this.coneAngle-halfCone)*r);ctx.stroke();
-ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(Math.cos(this.coneAngle+halfCone)*r,Math.sin(this.coneAngle+halfCone)*r);ctx.stroke();
-// Pastille centrale — VISIBLE sur n'importe quel fond : halo blanc (ressort sur fond sombre)
-// + cœur coloré + liseré sombre (ressort sur fond clair)
+ctx.fillStyle='rgba(255,190,30,0.42)';ctx.fill();
+ctx.lineCap='round';
+const _e1x=Math.cos(this.coneAngle-halfCone)*r,_e1y=Math.sin(this.coneAngle-halfCone)*r,_e2x=Math.cos(this.coneAngle+halfCone)*r,_e2y=Math.sin(this.coneAngle+halfCone)*r;
+const _coneStroke=(col,w)=>{ctx.strokeStyle=col;ctx.lineWidth=w;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(_e1x,_e1y);ctx.moveTo(0,0);ctx.lineTo(_e2x,_e2y);ctx.stroke();ctx.beginPath();ctx.arc(0,0,r,this.coneAngle-halfCone,this.coneAngle+halfCone);ctx.stroke();};
+_coneStroke('rgba(0,0,0,.4)',3);_coneStroke('rgba(255,236,120,.95)',1.4);
+// Pastille centrale — halo blanc (ressort sur fond sombre) + cœur coloré + liseré sombre (ressort sur fond clair)
 ctx.shadowBlur=0;
 ctx.beginPath();ctx.arc(0,0,13,0,6.28);ctx.fillStyle='rgba(255,255,255,.92)';ctx.fill();
 ctx.beginPath();ctx.arc(0,0,9.5,0,6.28);ctx.fillStyle=CONFIG.colors.target;ctx.fill();
