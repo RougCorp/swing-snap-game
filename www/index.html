@@ -4911,8 +4911,31 @@ const FriendManager=(function(){
   }
 
   if(typeof I18N!=='undefined'&&I18N.L){
-    Object.assign(I18N.L.fr,{duel_friends:'Amis',friend_your_code:'Ton code ami',friend_share_hint:'Partage-le pour qu\'on t\'ajoute',friend_none:'Aucun ami pour l\'instant. Partage ton code !',friend_offline:'Connexion requise pour les amis',friend_bad_code:'Code à 6 caractères',friend_notfound:'Code introuvable',friend_self:'C\'est ton propre code 😅',friend_added:'Ami ajouté !',friend_no_h2h:'Jamais affrontés',friend_invite:'{0} te défie !',friend_challenge_sent:'Défi envoyé à {0} — en attente…',duel_friendly:'Match amical · pas de points de ligue',duel_quit_friendly:'Duel amical quitté',profile_vs:'Face à face :'});
-    Object.assign(I18N.L.en,{duel_friends:'Friends',friend_your_code:'Your friend code',friend_share_hint:'Share it so people can add you',friend_none:'No friends yet. Share your code!',friend_offline:'Connection required for friends',friend_bad_code:'6-character code',friend_notfound:'Code not found',friend_self:'That\'s your own code 😅',friend_added:'Friend added!',friend_no_h2h:'Never faced',friend_invite:'{0} challenges you!',friend_challenge_sent:'Challenge sent to {0} — waiting…',duel_friendly:'Friendly match · no league points',duel_quit_friendly:'Friendly duel left',profile_vs:'Head-to-head:'});
+    Object.assign(I18N.L.fr,{duel_friends:'Amis',friend_your_code:'Ton code ami',friend_share_hint:'Partage-le pour qu\'on t\'ajoute',friend_none:'Aucun ami pour l\'instant. Partage ton code !',friend_offline:'Connexion requise pour les amis',friend_bad_code:'Code à 6 caractères',friend_notfound:'Code introuvable',friend_self:'C\'est ton propre code 😅',friend_added:'Ami ajouté !',friend_no_h2h:'Jamais affrontés',friend_invite:'{0} te défie !',friend_challenge_sent:'Défi envoyé à {0} — en attente…',friend_accept:'Accepter',duel_friendly:'Match amical · pas de points de ligue',duel_quit_friendly:'Duel amical quitté',profile_vs:'Face à face :'});
+    Object.assign(I18N.L.en,{duel_friends:'Friends',friend_your_code:'Your friend code',friend_share_hint:'Share it so people can add you',friend_none:'No friends yet. Share your code!',friend_offline:'Connection required for friends',friend_bad_code:'6-character code',friend_notfound:'Code not found',friend_self:'That\'s your own code 😅',friend_added:'Friend added!',friend_no_h2h:'Never faced',friend_invite:'{0} challenges you!',friend_challenge_sent:'Challenge sent to {0} — waiting…',friend_accept:'Accept',duel_friendly:'Friendly match · no league points',duel_quit_friendly:'Friendly duel left',profile_vs:'Head-to-head:'});
+  }
+
+  // ── Invitations de duel EN TEMPS RÉEL ──────────────────────────────────────
+  // Écoute MA sous-collection d'amis (onSnapshot Firestore, aucune règle à ajouter) :
+  // quand un ami y dépose une invitation, on affiche une bannière interactive Accepter/Décliner.
+  let _inviteUnsub=null;const _handledInvites={};
+  function startInviteListener(){const d=db(),u=uid();if(!d||!u||_inviteUnsub)return;
+    try{_inviteUnsub=d.collection('duelProfiles').doc(u).collection('friends').onSnapshot(snap=>{
+      snap.docs.forEach(doc=>{const inv=doc.data().invite;if(!inv||!inv.code)return;if(inv.at<Date.now()-120000)return;
+        const key=doc.id+':'+inv.code;if(_handledInvites[key])return;_handledInvites[key]=1;showInviteNotif(doc.id,inv);});
+    },()=>{});}catch(e){}}
+  function declineInvite(fromUid){try{const d=db(),u=uid();if(d&&u)d.collection('duelProfiles').doc(u).collection('friends').doc(fromUid).update({invite:firebase.firestore.FieldValue.delete()});}catch(e){}}
+  function showInviteNotif(fromUid,inv){
+    let n=$('inviteNotif');
+    if(!n){n=document.createElement('div');n.id='inviteNotif';n.style.cssText='display:none;position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);left:50%;transform:translateX(-50%);z-index:500;background:linear-gradient(135deg,#5E35B1,#7E57C2);color:#fff;border-radius:18px;padding:12px 14px;box-shadow:0 10px 30px rgba(0,0,0,.45);display:flex;align-items:center;gap:10px;max-width:92%;pointer-events:auto;animation:slideUp .3s';document.body.appendChild(n);}
+    n.innerHTML='<div style="font-weight:900;font-size:.9rem;line-height:1.1">⚔️ '+I18N.t('friend_invite',inv.from||'?')+'</div>'+
+      '<button id="invAccept" style="border:none;border-radius:12px;padding:9px 12px;font-weight:900;font-family:Nunito,sans-serif;cursor:pointer;background:#4CAF50;color:#fff;flex-shrink:0">✅ '+I18N.t('friend_accept')+'</button>'+
+      '<button id="invDecline" style="border:none;border-radius:12px;padding:9px 11px;font-weight:900;font-family:Nunito,sans-serif;cursor:pointer;background:rgba(0,0,0,.3);color:#fff;flex-shrink:0">✕</button>';
+    n.style.display='flex';
+    try{SoundManager.playPerfect&&SoundManager.playPerfect();}catch(e){}try{Haptic&&Haptic.heavy&&Haptic.heavy();}catch(e){}
+    $('invAccept').onclick=()=>{n.style.display='none';clearTimeout(n._t);if(typeof LiveDuel!=='undefined'&&LiveDuel.acceptInvite)LiveDuel.acceptInvite(fromUid,inv.code);};
+    $('invDecline').onclick=()=>{n.style.display='none';clearTimeout(n._t);declineInvite(fromUid);};
+    clearTimeout(n._t);n._t=setTimeout(()=>{n.style.display='none';},30000); // auto-masque après 30 s
   }
 
   function init(){
@@ -4922,6 +4945,8 @@ const FriendManager=(function(){
     const fb=$('duelFriendsBtn');if(fb)fb.onclick=()=>open('hub');
     // Onglet Amis sur le menu principal (sous les gemmes) — visible seulement sur le menu
     const mfb=$('menuFriendsBtn');if(mfb){mfb.onclick=()=>open('menu');const menu=$('menuScreen');const upd=()=>{mfb.style.display=(menu&&menu.classList.contains('active'))?'flex':'none';};if(menu&&window.MutationObserver){new MutationObserver(upd).observe(menu,{attributes:true,attributeFilter:['class']});}upd();}
+    // attache l'écouteur d'invitations dès que l'auth Firebase est prête
+    (function _waitAuth(t){if(uid()){startInviteListener();}else if(t<40)setTimeout(()=>_waitAuth(t+1),1500);})(0);
   }
   if(document.readyState!=='loading')setTimeout(init,0);else document.addEventListener('DOMContentLoaded',init);
   return {open,syncProfile,myCode};
