@@ -4168,11 +4168,18 @@ try{IAP.init(deliverEntitlement);}catch(e){console.log('[IAP] init error',e);}
 
 // ===== SERVICE WORKER (PWA) =====
 if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('SW registered:', reg))
-            .catch(err => console.log('SW registration failed:', err));
-    });
+    const _isLocal=/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+    if(_isLocal){
+        // En TEST LOCAL : on désinstalle tout service worker + cache pour ne jamais servir une vieille version
+        navigator.serviceWorker.getRegistrations().then(rs=>rs.forEach(r=>r.unregister())).catch(()=>{});
+        if(window.caches&&caches.keys)caches.keys().then(ks=>ks.forEach(k=>caches.delete(k))).catch(()=>{});
+    } else {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('SW registered:', reg))
+                .catch(err => console.log('SW registration failed:', err));
+        });
+    }
 }
 
 window.onload=()=>Game.init();
@@ -4815,7 +4822,7 @@ const FriendManager=(function(){
   function myCode(){const u=uid();return u?codeFromUid(u):'------';}
 
   async function syncProfile(){try{const d=db(),u=uid();if(!d||!u)return;const dd=DataManager.data;const code=codeFromUid(u);
-    await d.collection('duelProfiles').doc(u).set({name:(dd.playerName||'Joueur').slice(0,20),emblem:dd.currentEmblem||'classic',banner:dd.currentBanner||'classic',leaguePoints:dd.leaguePoints||0,leaguePeriod:dd.leaguePeriod||0,duelWins:dd.duelWins||0,duelLosses:dd.duelLosses||0,code,ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    await d.collection('duelProfiles').doc(u).set({name:(dd.playerName||'Joueur').slice(0,20),emblem:dd.currentEmblem||'classic',banner:dd.currentBanner||'classic',leaguePoints:dd.leaguePoints||0,leaguePeriod:dd.leaguePeriod||0,duelWins:dd.duelWins||0,duelLosses:dd.duelLosses||0,highScore:dd.highScore||0,blitzBest:dd.timeAttackBest||0,games:(dd.stats&&dd.stats.totalRuns)||0,pivots:(dd.stats&&dd.stats.totalPivots)||0,code,ts:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
     await d.collection('friendCodes').doc(code).set({uid:u},{merge:true});}catch(e){}}
 
   async function addByCode(codeRaw){const code=(codeRaw||'').trim().toUpperCase();if(code.length!==6)return {ok:false,msg:I18N.t('friend_bad_code')};
@@ -4834,7 +4841,7 @@ const FriendManager=(function(){
       for(const doc of snap.docs){const fuid=doc.id;let prof={name:'Joueur',emblem:'classic',banner:'classic',leaguePoints:0};
         try{const p=await d.collection('duelProfiles').doc(fuid).get();if(p.exists)prof=Object.assign(prof,p.data());}catch(e){}
         const inv=doc.data().invite; // invitation de défi reçue de cet ami (déposée dans MA fiche)
-        out.push({uid:fuid,name:prof.name,emblem:prof.emblem,banner:prof.banner||'classic',leaguePoints:prof.leaguePoints||0,wins:prof.duelWins||0,losses:prof.duelLosses||0,invite:(inv&&inv.at>Date.now()-120000)?inv:null});}
+        out.push({uid:fuid,name:prof.name,emblem:prof.emblem,banner:prof.banner||'classic',leaguePoints:prof.leaguePoints||0,wins:prof.duelWins||0,losses:prof.duelLosses||0,highScore:prof.highScore||0,blitzBest:prof.blitzBest||0,games:prof.games||0,pivots:prof.pivots||0,invite:(inv&&inv.at>Date.now()-120000)?inv:null});}
       return out;
     }catch(e){return [];}}
 
@@ -4889,6 +4896,11 @@ const FriendManager=(function(){
         '<div><div style="font-size:1.2rem;color:#4CAF50">'+wins+'</div><div style="font-size:.6rem;color:var(--text-light)">'+I18N.t('stat_duel_wins')+'</div></div>'+
         '<div><div style="font-size:1.2rem;color:#E53935">'+losses+'</div><div style="font-size:.6rem;color:var(--text-light)">'+I18N.t('stat_duel_losses')+'</div></div>'+
         '<div><div style="font-size:1.2rem;color:var(--accent)">'+wr+'%</div><div style="font-size:.6rem;color:var(--text-light)">'+I18N.t('stat_duel_winrate')+'</div></div>'+
+      '</div>'+
+      '<div style="display:flex;justify-content:center;gap:18px;font-weight:900;margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,.07)">'+
+        '<div><div style="font-size:1rem;color:var(--text)">'+(f.highScore||0)+'</div><div style="font-size:.58rem;color:var(--text-light)">'+I18N.t('stat_best')+'</div></div>'+
+        '<div><div style="font-size:1rem;color:var(--text)">'+(f.blitzBest||0)+'</div><div style="font-size:.58rem;color:var(--text-light)">⚡ Blitz</div></div>'+
+        '<div><div style="font-size:1rem;color:var(--text)">'+(f.games||0)+'</div><div style="font-size:.58rem;color:var(--text-light)">'+I18N.t('stat_runs')+'</div></div>'+
       '</div>'+
       (rec?'<div style="margin-top:12px;font-size:.78rem;color:var(--text-light)">'+I18N.t('profile_vs')+' <b style="color:#4CAF50">'+rec.w+'V</b> · <b style="color:#E53935">'+rec.l+'D</b>'+(rec.d?' · '+rec.d+'N':'')+'</div>':'');
     card.appendChild(body);
