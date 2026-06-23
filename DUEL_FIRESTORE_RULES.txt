@@ -38,7 +38,7 @@ mode Duel — elles n'écrasent rien.
     match /friendCodes/{code} {
       allow read: if request.auth != null;
       // un joueur ne pose que SON propre mapping
-      allow write: if request.auth != null && request.data.uid == request.auth.uid;
+      allow write: if request.auth != null && request.resource.data.uid == request.auth.uid;
     }
 ------------------------------------------------------------------
 
