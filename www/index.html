@@ -4694,7 +4694,8 @@ const DuelManager=(function(){
     M.seed=seed;$('duelMatchmaking').style.display='none';startPlay();}
 
   // ---- DUELS LIVE (RTDB) : fantôme piloté par les taps reçus en temps réel ----
-  function startLive(seed,opp,opts){opts=opts||{};M.live=true;M.friendly=true;M.onRelease=opts.onRelease||null; // duel privé/ami → amical (pas d'élo)M.onFinishLive=opts.onFinish||null;M._onQuitLive=opts.onQuit||null;M.onScore=opts.onScore||null;M.onAtout=opts.onAtout||null;M.liveOppTaps=[];M.opp=opp;M.seed=seed;
+  // duel privé/ami → amical (pas d'élo)
+  function startLive(seed,opp,opts){opts=opts||{};M.live=true;M.friendly=true;M.onRelease=opts.onRelease||null;M.onFinishLive=opts.onFinish||null;M._onQuitLive=opts.onQuit||null;M.onScore=opts.onScore||null;M.onAtout=opts.onAtout||null;M.liveOppTaps=[];M.opp=opp;M.seed=seed;
     $('duelMatchmaking').style.display='none';startPlay();}
   // Reconstruit le fantôme adverse à partir de ses taps connus (déterministe) → position/score live exacts.
   function setLiveOppTaps(taps){if(!M.live||!M.level||!M.ghost)return;M.liveOppTaps=(taps||[]).slice();
