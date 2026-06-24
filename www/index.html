@@ -4327,6 +4327,12 @@ window.onload=()=>Game.init();
 })();
 
 /* ===== DuelManager : matchmaking + arène live + résultat + ligue ===== */
+// Ligues : reset toutes les 3 SEMAINES, le LUNDI à 6h.
+// Ancre = lundi 1 janvier 2024 06:00 (heure locale) ; périodes de 21 jours (multiple de 7 → toujours un lundi 6h).
+const LEAGUE_ANCHOR=new Date(2024,0,1,6,0,0,0).getTime();
+const LEAGUE_PERIOD_MS=21*864e5;
+function leaguePeriodIndex(){return Math.floor((Date.now()-LEAGUE_ANCHOR)/LEAGUE_PERIOD_MS);}
+function leaguePeriodEnd(){return LEAGUE_ANCHOR+(leaguePeriodIndex()+1)*LEAGUE_PERIOD_MS;}
 const DuelManager=(function(){
   const E=window.DuelEngine;
   const TARGET=30;                // 1er à 30 points gagne (course, comme Blitz)
@@ -4369,9 +4375,9 @@ const DuelManager=(function(){
   function ensureData(){const d=DataManager.data;
     if(d.duelWins==null)d.duelWins=0;if(d.duelLosses==null)d.duelLosses=0;if(d.duelDraws==null)d.duelDraws=0;
     if(d.leaguePoints==null)d.leaguePoints=0;if(d.h2h==null)d.h2h={};
-    const period=Math.floor(Date.now()/(14*864e5));
+    const period=leaguePeriodIndex();
     if(d.leaguePeriod==null){d.leaguePeriod=period;}
-    else if(d.leaguePeriod!==period){d.leaguePeriod=period;d.leaguePoints=Math.floor(d.leaguePoints*0.35);} // reset doux toutes les 2 semaines
+    else if(d.leaguePeriod!==period){d.leaguePeriod=period;d.leaguePoints=Math.floor(d.leaguePoints*0.35);} // reset doux toutes les 3 semaines (lundi 6h)
     return d;}
   function tierFor(pts){return rankFor(pts);} // compat : renvoie le rang complet (name avec division, color, c2, baseAt, nextAt)
   // Badge de rang (design propre à chaque palier : dégradé couleur + initiale + chevrons de division)
@@ -5019,7 +5025,7 @@ const LeagueBoard=(function(){
   function db(){const LB=(typeof WeeklyLeaderboard!=='undefined')?WeeklyLeaderboard:null;return LB&&LB._db;}
   function uid(){const LB=(typeof WeeklyLeaderboard!=='undefined')?WeeklyLeaderboard:null;return LB&&LB._uid;}
   function tierFor(pts){try{return DuelManager.tierFor(pts);}catch(e){return {name:'Bronze',color:'#CD7F32'};}}
-  function daysLeft(){const period=Math.floor(Date.now()/(14*864e5));const end=(period+1)*14*864e5;return Math.max(0,Math.ceil((end-Date.now())/864e5));}
+  function daysLeft(){return Math.max(0,Math.ceil((leaguePeriodEnd()-Date.now())/864e5));}
 
   function embCanvas(embId,size){const cv=document.createElement('canvas');try{const EM=(typeof EMBLEMS!=='undefined'?EMBLEMS:{});const emb=EM[embId]||EM.classic;const dpr=window.devicePixelRatio||1;cv.width=size*dpr;cv.height=size*dpr;cv.style.cssText='width:'+size+'px;height:'+size+'px;background:rgba(255,255,255,.9);border-radius:50%;flex-shrink:0';const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.translate(size/2,size/2);c.scale(size/30,size/30);if(emb){c.fillStyle=emb.color;emb.draw(c);}}catch(e){}return cv;}
 
