@@ -955,12 +955,12 @@ const PerfUtils = {
 const DataManager={
 data:{highScore:0,gems:50,gemsBlue:30,skins:['classic'],trails:['classic'],currentSkin:'classic',currentTrail:'classic',currentBg:'classic',backgrounds:['classic'],emblems:['classic'],banners:['classic'],currentEmblem:'classic',currentBanner:'classic',noAds:false,stats:{totalPivots:0,totalScore:0,totalRuns:0,totalGemsCollected:0,bestGemsInRun:0,blitzRuns:0,weeklySubmitCount:0,weeklyTop10Count:0,totalPerfects:0,totalMaxMultiplier:0,weeklyPodiumCount:0},sessionRuns:0,missionsProgress:{},unlockedPacks:[],claimedMissions:[],lastDailyDate:0,claimedDailies:[],musicVol:10,sfxVol:75,dailyStats:{date:0,runs:0,score:0,gems:0,bestRun:0},lives:3,livesLastRegen:0,adsLivesToday:0,adsLivesDate:0,notificationsEnabled:true,campaignLevel:1,campaignStars:{},campaignFlawless:{},dailyCampaignDate:0,dailyCampaignDone:false,streak:0,streakLastDate:0,streakShownToday:false,_streakGemReward:0,_streakSkinUnlocked:false,installDate:0,starterOfferShown:false,starterOfferClaimed:false,timeAttackBest:0,storedPowerups:{shield:0,slowmo:0,magnet:0,mult2:0},adRouletteDate:'',adRouletteCount:0,playerName:'',nameIsLocked:false,weeklyScores:[],weeklyScoreWeek:0,lastWeekTopScores:[],v200TutoSeen:false,tutoHints:{cone:false,mult:false,pu:false}},
 load(){try{const s=localStorage.getItem('swingSnapData');if(s){const saved=JSON.parse(s);this.data={...this.data,...saved,stats:{...this.data.stats,...(saved.stats||{})},dailyStats:{...this.data.dailyStats,...(saved.dailyStats||{})},storedPowerups:{...this.data.storedPowerups,...(saved.storedPowerups||{})},tutoHints:{...this.data.tutoHints,...(saved.tutoHints||{})}};}this.checkDailyReset();this.updateUI();
+try{reconcileOwnedPacks();}catch(e){} // re-livre aux propriétaires tout contenu ajouté à un pack déjà acheté
 // Record install date on first ever load
 if(!this.data.installDate){this.data.installDate=Date.now();this.save();}
 // Streak popup — shown on first open of each new day
 if(!this.data.streakShownToday){this.data.streakShownToday=true;this.save();setTimeout(()=>showStreakPopup(this.data.streak,this.data._streakGemReward,this.data._streakSkinUnlocked),800);}
-// Starter offer — shown once, 24h after install, only if not yet purchased
-else if(!this.data.starterOfferShown&&!this.data.starterOfferClaimed&&(Date.now()-this.data.installDate)>86400000){this.data.starterOfferShown=true;this.save();setTimeout(()=>showStarterOffer(),1200);}
+// Offre Starter RETIRÉE (jamais validée) — ne s'affiche plus
 }catch(e){}},
 checkDailyReset(){
 const today=todaySeed();
@@ -4007,6 +4007,15 @@ $('btnMenuFromComplete2').onclick=()=>{$('levelCompleteScreen').classList.remove
 // ===== IN-APP PURCHASES =====
 // Delivery function — called by the store plugin (via IAP wrapper) whenever
 // a purchase is approved or restored. Credits gems, flips noAds, unlocks packs.
+// Re-livre le contenu des packs DÉJÀ achetés (unlockedPacks) : si on ajoute des
+// items à un pack, ses propriétaires les reçoivent au lancement sans racheter.
+function reconcileOwnedPacks(){
+const d=DataManager.data;if(!d.unlockedPacks||!d.unlockedPacks.length)return;let changed=false;
+const ARR={ball:'skins',trail:'trails',bg:'backgrounds',emblem:'emblems',banner:'banners'};
+d.unlockedPacks.forEach(pid=>{const pack=PACKS.find(p=>p.id===pid);if(!pack||pack.type!=='skin'||!pack.content)return;
+  pack.content.forEach(i=>{const k=ARR[i.type];if(!k)return;if(!d[k])d[k]=[];if(!d[k].includes(i.id)){d[k].push(i.id);changed=true;}});});
+if(changed)DataManager.save();
+}
 function deliverEntitlement(productId){
 const pack=PACKS.find(p=>p.id===productId);
 if(!pack){console.log('[IAP] unknown productId',productId);return;}
