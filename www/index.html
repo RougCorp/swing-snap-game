@@ -3510,7 +3510,7 @@ list.appendChild(div);
 
 function tierGoalDesc(stat,goal){
 const g=goal.toLocaleString();
-if(stat==='duelBestLeague'){try{return I18N.t('tg_reach',DuelManager.rankFor(goal).tier.name);}catch(e){return g;}}
+if(stat==='duelBestLeague'){try{return I18N.t('tg_reach',DuelManager.rankFor(goal).name);}catch(e){return g;}}
 if(stat==='duelWins')return I18N.t('tg_duelwins',g);
 if(stat==='duelPlayed')return I18N.t('tg_duelplayed',g);
 const map={'bestRun':I18N.t('tg_best_run',g),'totalRuns':I18N.t('tg_runs',g),'totalGemsCollected':I18N.t('tg_gems',g),'totalScore':I18N.t('tg_total_score',g),'bestGemsInRun':I18N.t('tg_gems_run',g),'campaignLevel':I18N.t('tg_camp_level',g),'dailyCampaignCount':I18N.t('tg_daily_count',g),'campaignStars3':I18N.t('tg_perfect',g),'campaignTotalStars':I18N.t('tg_total_stars',g)};
@@ -4751,8 +4751,8 @@ const DuelManager=(function(){
     const card=document.createElement('div');card.style.cssText='background:linear-gradient(180deg,#1a1230,#0e0a1c);border-radius:22px;padding:18px 14px;max-width:380px;width:100%;max-height:88vh;overflow:auto;box-shadow:0 18px 50px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.08)';
     let html='<div style="text-align:center;color:#fff;font-weight:900;font-size:1.15rem">🏆 '+I18N.t('league_path')+'</div><div style="text-align:center;color:rgba(255,255,255,.55);font-size:.7rem;margin-bottom:12px">'+I18N.t('league_path_sub')+'</div>';
     for(let ti=TIERS.length-1;ti>=0;ti--){const t=TIERS[ti],isRad=t.id==='radiant',divs=isRad?[0]:[3,2,1];
-      html+='<div style="display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.06)"><div style="flex:1;min-width:0;font-weight:900;font-size:.95rem;color:'+t.color+'">'+t.name+'</div><div style="display:flex;gap:6px">';
-      divs.forEach(div=>{const r={tier:t,division:div,color:t.color,c2:t.c2,name:t.name},me=(t.id===cur.tier.id&&div===cur.division),base=(isRad?(TIERS.length-1)*3:(ti*3+(div-1)))*DIV_PTS;
+      html+='<div style="display:flex;align-items:center;gap:10px;padding:7px 2px;border-bottom:1px solid rgba(255,255,255,.06)"><div style="flex:1;min-width:0;font-weight:900;font-size:.95rem;color:'+t.color+'">'+tierName(t)+'</div><div style="display:flex;gap:6px">';
+      divs.forEach(div=>{const r={tier:t,division:div,color:t.color,c2:t.c2,name:tierName(t)},me=(t.id===cur.tier.id&&div===cur.division),base=(isRad?(TIERS.length-1)*3:(ti*3+(div-1)))*DIV_PTS;
         html+='<div style="text-align:center;'+(me?'transform:scale(1.06)':'opacity:.5')+'">'+rankBadgeHTML(r,me?42:34)+'<div style="font-size:.5rem;color:rgba(255,255,255,.6);margin-top:1px">'+base+'</div></div>';});
       html+='</div></div>';}
     html+='<div style="text-align:center;margin-top:12px;color:'+cur.color+';font-weight:900">'+I18N.t('league_you')+' · '+cur.name+' ('+DataManager.data.leaguePoints+' '+I18N.t('duel_points')+')</div>';
@@ -5032,8 +5032,8 @@ const LeagueBoard=(function(){
     // Échelle de toutes les ligues (façon Valorant) — palier courant mis en avant
     try{const T=DuelManager.TIERS,myT=DuelManager.rankFor(DataManager.data.leaguePoints).tier.id;
       let lad='<div style="display:flex;gap:7px;overflow-x:auto;padding:6px 2px 8px;margin-bottom:6px">';
-      T.forEach(t=>{const isMe=t.id===myT;const r={tier:t,division:t.id==='radiant'?0:1,color:t.color,c2:t.c2,name:t.name};
-        lad+='<div style="flex:0 0 auto;text-align:center;opacity:'+(isMe?'1':'.45')+'">'+DuelManager.rankBadgeHTML(r,isMe?44:36)+'<div style="font-size:.54rem;font-weight:800;color:'+t.color+';margin-top:2px;white-space:nowrap">'+t.name+'</div></div>';});
+      T.forEach(t=>{const isMe=t.id===myT;const tn=I18N.t('tier_'+t.id);const r={tier:t,division:t.id==='radiant'?0:1,color:t.color,c2:t.c2,name:tn};
+        lad+='<div style="flex:0 0 auto;text-align:center;opacity:'+(isMe?'1':'.45')+'">'+DuelManager.rankBadgeHTML(r,isMe?44:36)+'<div style="font-size:.54rem;font-weight:800;color:'+t.color+';margin-top:2px;white-space:nowrap">'+tn+'</div></div>';});
       lad+='</div>';$('leagueLadder').innerHTML=lad;}catch(e){$('leagueLadder').innerHTML='';}
     const list=$('leagueList');list.innerHTML='<div style="text-align:center;color:var(--text-light);font-size:.8rem;padding:14px">…</div>';
     $('leagueMine').innerHTML='';
