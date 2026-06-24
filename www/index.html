@@ -4225,30 +4225,26 @@ window.onload=()=>Game.init();
 </div>
 <!-- Duel hub (entry: quick match / league standing) -->
 <div id="duelHub" class="screen ui-element">
-  <h1 style="font-size:2rem">⚔️ <span data-i18n="duel_title">DUEL</span></h1>
+  <div class="screen-header"><button class="back-btn" id="duelHubClose">&#8592;</button><h2 style="font-size:1.4rem;margin:0">⚔️ <span data-i18n="duel_title">DUEL</span></h2></div>
   <div id="duelHubLeague" style="background:linear-gradient(135deg,rgba(142,99,180,.12),rgba(244,169,38,.12));border:2px solid rgba(142,99,180,.25);border-radius:18px;padding:14px 16px;margin-bottom:14px;width:100%;box-sizing:border-box"></div>
   <button class="btn btn-primary" id="duelQuickBtn">🎯 <span data-i18n="duel_quick">Match rapide</span></button>
   <button class="btn btn-secondary" id="duelFriendsBtn" style="border-color:#42A5F5;color:#1976D2">👥 <span data-i18n="duel_friends">Amis</span></button>
   <button class="btn btn-secondary" id="duelLeagueBtn" style="border-color:var(--gold);color:#C8860B">🏆 <span data-i18n="league_board">Classement Ligue</span></button>
   <button class="btn btn-secondary" id="duelPrivateBtn" style="border-color:#26A69A;color:#00897B">📟 <span data-i18n="live_title">Duel privé (live)</span></button>
-  <div id="duelHubRecord" style="font-size:.85rem;color:var(--text-light);font-weight:800;margin:8px 0"></div>
-  <button class="btn btn-secondary" id="duelHubClose" data-i18n="back">RETOUR</button>
-</div>
+  <div id="duelHubRecord" style="font-size:.85rem;color:var(--text-light);font-weight:800;margin:8px 0"></div></div>
 <!-- Friends screen -->
 <div id="friendsScreen" class="screen ui-element">
-  <h1 style="font-size:1.7rem">👥 <span data-i18n="duel_friends">Amis</span></h1>
+  <div class="screen-header"><button class="back-btn" id="friendsClose">&#8592;</button><h2 style="font-size:1.3rem;margin:0">👥 <span data-i18n="duel_friends">Amis</span></h2></div>
   <div id="friendsMyCode" style="background:linear-gradient(135deg,rgba(66,165,245,.12),rgba(142,99,180,.12));border:2px solid rgba(66,165,245,.25);border-radius:16px;padding:12px 14px;margin-bottom:12px;width:100%;box-sizing:border-box;text-align:center"></div>
   <div style="display:flex;gap:8px;width:100%;margin-bottom:10px">
     <input id="friendCodeInput" maxlength="6" placeholder="CODE AMI" data-i18n-ph="friend_code_ph" autocomplete="off" autocapitalize="characters" style="flex:1;min-width:0;padding:12px;border:2px solid rgba(0,0,0,.1);border-radius:14px;font-family:'Nunito',sans-serif;font-weight:900;font-size:1rem;text-align:center;letter-spacing:3px;text-transform:uppercase;background:var(--bg);color:var(--text)">
     <button id="friendAddBtn" class="btn btn-primary" style="width:auto;padding:12px 18px;margin:0">＋</button>
   </div>
   <div id="friendsList" style="width:100%;display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow-y:auto"></div>
-  <div id="friendsEmpty" style="font-size:.82rem;color:var(--text-light);font-weight:700;margin:10px 0;display:none"></div>
-  <button class="btn btn-secondary" id="friendsClose" data-i18n="back" style="margin-top:8px">RETOUR</button>
-</div>
+  <div id="friendsEmpty" style="font-size:.82rem;color:var(--text-light);font-weight:700;margin:10px 0;display:none"></div></div>
 <!-- Private (live) duel screen -->
 <div id="privateDuelScreen" class="screen ui-element">
-  <h1 style="font-size:1.5rem">📟 <span data-i18n="live_title">Duel privé</span></h1>
+  <div class="screen-header"><button class="back-btn" id="liveClose">&#8592;</button><h2 style="font-size:1.3rem;margin:0">📟 <span data-i18n="live_title">Duel privé</span></h2></div>
   <div id="liveIdle" style="width:100%;display:flex;flex-direction:column;gap:10px">
     <button class="btn btn-primary" id="liveCreateBtn">➕ <span data-i18n="live_create">Créer un salon</span></button>
     <div style="font-size:.72rem;color:var(--text-light);font-weight:700" data-i18n="live_or">— ou rejoins avec un code —</div>
@@ -4264,18 +4260,14 @@ window.onload=()=>Game.init();
     <div class="duel-spinner" style="margin:12px auto"></div>
     <div style="font-size:.85rem;font-weight:700;color:var(--text)" data-i18n="live_waiting">En attente d'un adversaire…</div>
     <button class="btn btn-secondary" id="liveCancelBtn" style="margin-top:12px" data-i18n="duel_cancel">Annuler</button>
-  </div>
-  <button class="btn btn-secondary" id="liveClose" data-i18n="back">RETOUR</button>
-</div>
+  </div></div>
 <!-- League leaderboard screen -->
 <div id="leagueScreen" class="screen ui-element">
-  <h1 style="font-size:1.6rem">🏆 <span data-i18n="league_board">Classement Ligue</span></h1>
+  <div class="screen-header"><button class="back-btn" id="leagueClose">&#8592;</button><h2 style="font-size:1.3rem;margin:0">🏆 <span data-i18n="league_board">Classement Ligue</span></h2></div>
   <div id="leagueSub" style="font-size:.72rem;color:var(--text-light);font-weight:700;margin-bottom:4px"></div>
   <div id="leagueLadder" style="width:100%"></div>
   <div id="leagueList" style="width:100%;display:flex;flex-direction:column;gap:6px;max-height:44vh;overflow-y:auto"></div>
-  <div id="leagueMine" style="width:100%;margin-top:8px"></div>
-  <button class="btn btn-secondary" id="leagueClose" data-i18n="back" style="margin-top:8px">RETOUR</button>
-</div>
+  <div id="leagueMine" style="width:100%;margin-top:8px"></div></div>
 
 <script>
 /* ===== Duel Engine (déterministe, terrain virtuel fixe) — inline ===== */
@@ -4347,6 +4339,8 @@ const DuelManager=(function(){
     {id:'radiant',name:'Radiant',color:'#FFE9A8',c2:'#E6B422'} // sommet, sans division
   ];
   const DIV_PTS=100;              // points par division (progression exigeante, ~24 duels/division)
+  // nom de palier traduit (repli sur le nom FR par défaut si la clé manque)
+  function tierName(t){const v=I18N.t('tier_'+t.id);return (v==='tier_'+t.id)?t.name:v;}
   // Renvoie le rang complet pour des points : {tier, division(0=Radiant), name, color, c2, baseAt, nextAt|null}
   function rankFor(points){points=Math.max(0,points|0);
     const idx=Math.floor(points/DIV_PTS);
@@ -4356,7 +4350,7 @@ const DuelManager=(function(){
     const t=TIERS[ti];
     const baseAt=(div===0?lastTi*3:(ti*3+(div-1)))*DIV_PTS;
     const nextAt=(div===0)?null:(div<3?baseAt+DIV_PTS:(ti*3+3)*DIV_PTS);
-    return {tier:t,division:div,name:t.name+(div?' '+div:''),color:t.color,c2:t.c2,baseAt,nextAt};
+    return {tier:t,division:div,name:tierName(t)+(div?' '+div:''),color:t.color,c2:t.c2,baseAt,nextAt};
   }
   const BOT_NAMES=['Maxime','Léa','Tom','Chloé','Hugo','Jade','Eden','Nora','Yanis','Milo','Lina','Sacha','Aria','Noé','Inès','Kylian','Soan','Maya','Théo','Zoé'];
   const M={active:false,raf:0,state:'idle',ctx:null,cssW:0,cssH:0,dpr:1,scale:1,
@@ -4634,7 +4628,7 @@ const DuelManager=(function(){
       showResult(res,you,opp,0,true);
       M.live=false;M.onRelease=null;M.onFinishLive=null;M.onScore=null;M.onAtout=null;return;
     }
-    if(res==='win'){d.duelWins++;delta=20;}else if(res==='lose'){d.duelLosses++;delta=-15;}else{d.duelDraws=(d.duelDraws||0)+1;delta=5;}
+    if(res==='win'){d.duelWins++;delta=12;}else if(res==='lose'){d.duelLosses++;delta=-12;}else{d.duelDraws=(d.duelDraws||0)+1;delta=2;} // gains modérés → montée de ligue progressive
     d.leaguePoints=Math.max(0,(d.leaguePoints||0)+delta);
     d.duelBestLeague=Math.max(d.duelBestLeague||0,d.leaguePoints); // pour les missions "atteindre une ligue"
     recordH2H();
@@ -4742,7 +4736,7 @@ const DuelManager=(function(){
     if(M.state==='done'||M.state==='idle'||!M.opp)return;
     M.state='done';M.active=false;cancelAnimationFrame(M.raf);M.paused=false;M.oppPaused=false;hidePauseOverlay();
     const d=ensureData();const you=Math.min(TARGET,(M.P&&M.P.score)||0);let gain=0;
-    if(!M.friendly){gain=8;d.duelWins=(d.duelWins||0)+1;d.leaguePoints=(d.leaguePoints||0)+gain;d.duelBestLeague=Math.max(d.duelBestLeague||0,d.leaguePoints);}
+    if(!M.friendly){gain=5;d.duelWins=(d.duelWins||0)+1;d.leaguePoints=(d.leaguePoints||0)+gain;d.duelBestLeague=Math.max(d.duelBestLeague||0,d.leaguePoints);}
     if(M.opp&&M.opp.uid){const h=d.h2h[M.opp.uid]||{name:M.opp.name,w:0,l:0,d:0};h.w++;h.name=M.opp.name;d.h2h[M.opp.uid]=h;}
     DataManager.save();try{FriendManager.syncProfile();}catch(e){}
     showResult('win',you,0,gain,M.friendly,true);
@@ -4788,6 +4782,13 @@ const DuelManager=(function(){
     if(I18N.L.de)Object.assign(I18N.L.de,{duel_paused:'Pausiert',duel_resume:'Fortsetzen',duel_quit_btn:'Verlassen',duel_opp_paused:'Gegner pausiert',duel_wait:'Bitte warten…',duel_quit_friendly_q:'Freundschaftsduell verlassen? Keine Punkte verloren.',duel_quit_online_q:'Ranglistenduell verlassen? Du verlierst 20 Liga-Punkte. 💔',duel_opp_left:'Gegner hat verlassen'});
     if(I18N.L.it)Object.assign(I18N.L.it,{duel_paused:'In pausa',duel_resume:'Riprendi',duel_quit_btn:'Esci',duel_opp_paused:'Avversario in pausa',duel_wait:'Attendi…',duel_quit_friendly_q:'Uscire dal duello amichevole? Nessun punto perso.',duel_quit_online_q:'Uscire dal duello classificato? Perdi 20 punti lega. 💔',duel_opp_left:'Avversario uscito'});
     if(I18N.L.pt)Object.assign(I18N.L.pt,{duel_paused:'Em pausa',duel_resume:'Retomar',duel_quit_btn:'Sair',duel_opp_paused:'Adversário em pausa',duel_wait:'Aguarda…',duel_quit_friendly_q:'Sair do duelo amigável? Não perdes pontos.',duel_quit_online_q:'Sair do duelo classificado? Perdes 20 pontos de liga. 💔',duel_opp_left:'Adversário saiu'});
+    // noms des paliers de ligue (traduits)
+    Object.assign(I18N.L.fr,{tier_fer:'Fer',tier_bronze:'Bronze',tier_argent:'Argent',tier_or:'Or',tier_platine:'Platine',tier_diamant:'Diamant',tier_ascendant:'Ascendant',tier_immortel:'Immortel',tier_radiant:'Radiant'});
+    Object.assign(I18N.L.en,{tier_fer:'Iron',tier_bronze:'Bronze',tier_argent:'Silver',tier_or:'Gold',tier_platine:'Platinum',tier_diamant:'Diamond',tier_ascendant:'Ascendant',tier_immortel:'Immortal',tier_radiant:'Radiant'});
+    if(I18N.L.es)Object.assign(I18N.L.es,{tier_fer:'Hierro',tier_bronze:'Bronce',tier_argent:'Plata',tier_or:'Oro',tier_platine:'Platino',tier_diamant:'Diamante',tier_ascendant:'Ascendente',tier_immortel:'Inmortal',tier_radiant:'Radiante'});
+    if(I18N.L.de)Object.assign(I18N.L.de,{tier_fer:'Eisen',tier_bronze:'Bronze',tier_argent:'Silber',tier_or:'Gold',tier_platine:'Platin',tier_diamant:'Diamant',tier_ascendant:'Aufsteiger',tier_immortel:'Unsterblich',tier_radiant:'Radiant'});
+    if(I18N.L.it)Object.assign(I18N.L.it,{tier_fer:'Ferro',tier_bronze:'Bronzo',tier_argent:'Argento',tier_or:'Oro',tier_platine:'Platino',tier_diamant:'Diamante',tier_ascendant:'Ascendente',tier_immortel:'Immortale',tier_radiant:'Radiante'});
+    if(I18N.L.pt)Object.assign(I18N.L.pt,{tier_fer:'Ferro',tier_bronze:'Bronze',tier_argent:'Prata',tier_or:'Ouro',tier_platine:'Platina',tier_diamant:'Diamante',tier_ascendant:'Ascendente',tier_immortel:'Imortal',tier_radiant:'Radiante'});
     // Traductions complètes (es/de/it/pt) — toutes les clés duel/amis/ligue/live. Les autres langues retombent sur l'anglais.
     Object.assign(I18N.L.es,{duel_title:'DUELO',duel_quick:'Partida rápida',duel_play_bot:'Jugar contra un bot',duel_cancel:'Cancelar',duel_searching:'Buscando un rival…',duel_found:'¡Rival encontrado!',duel_win:'¡VICTORIA!',duel_lose:'DERROTA',duel_draw:'EMPATE',duel_points:'pts',duel_rematch:'Revancha',duel_league:'Liga',duel_w:'V',duel_l:'D',duel_d:'E',duel_no_games:'Ningún duelo jugado',duel_maxtier:'Rango máximo alcanzado 👑',duel_menu_btn:'DUELOS',duel_friends:'Amigos',friend_your_code:'Tu código de amigo',friend_share_hint:'Compártelo para que te agreguen',friend_none:'Aún no tienes amigos. ¡Comparte tu código!',friend_offline:'Conexión necesaria para los amigos',friend_bad_code:'Código de 6 caracteres',friend_notfound:'Código no encontrado',friend_self:'Es tu propio código 😅',friend_added:'¡Amigo añadido!',friend_no_h2h:'Nunca enfrentados',league_board:'Clasificación de Liga',league_you:'tú',league_resets:'Reinicio en {0} día(s)',league_offline:'Conexión necesaria para la clasificación mundial',league_your_rank:'Tu rango',league_unranked:'—',live_title:'Duelo privado (en vivo)',live_create:'Crear una sala',live_or:'— o únete con un código —',live_code:'CÓDIGO DE SALA',live_waiting:'Esperando a un rival…',live_hint:'Enfréntate a un amigo en tiempo real en la misma arena.',live_offline:'Duelo en vivo no disponible (conexión / base en tiempo real)',live_bad_code:'Código de 4 dígitos',live_notfound:'Sala no encontrada',live_full:'La sala ya está llena',live_self:'Es tu propia sala 😅',duel_slow_on:'¡Rival ralentizado!',duel_x2_on:'¡×2 activado!',duel_atout_slow:'Ralentizar al rival (1×)',duel_atout_x2:'Puntos dobles · 10 s (1×)',duel_slowed:'¡Estás ralentizado!',duel_opp_x2:'¡Rival ×2!'});
     Object.assign(I18N.L.de,{duel_title:'DUELL',duel_quick:'Schnelles Match',duel_play_bot:'Gegen einen Bot spielen',duel_cancel:'Abbrechen',duel_searching:'Suche einen Gegner…',duel_found:'Gegner gefunden!',duel_win:'SIEG!',duel_lose:'NIEDERLAGE',duel_draw:'UNENTSCHIEDEN',duel_points:'Pkt',duel_rematch:'Revanche',duel_league:'Liga',duel_w:'S',duel_l:'N',duel_d:'U',duel_no_games:'Keine Duelle gespielt',duel_maxtier:'Höchster Rang erreicht 👑',duel_menu_btn:'DUELLE',duel_friends:'Freunde',friend_your_code:'Dein Freundescode',friend_share_hint:'Teile ihn, damit man dich hinzufügt',friend_none:'Noch keine Freunde. Teile deinen Code!',friend_offline:'Verbindung für Freunde erforderlich',friend_bad_code:'6-stelliger Code',friend_notfound:'Code nicht gefunden',friend_self:'Das ist dein eigener Code 😅',friend_added:'Freund hinzugefügt!',friend_no_h2h:'Nie gegeneinander',league_board:'Liga-Rangliste',league_you:'du',league_resets:'Zurücksetzen in {0} Tag(en)',league_offline:'Verbindung für die globale Rangliste erforderlich',league_your_rank:'Dein Rang',league_unranked:'—',live_title:'Privates Duell (live)',live_create:'Raum erstellen',live_or:'— oder mit Code beitreten —',live_code:'RAUMCODE',live_waiting:'Warte auf einen Gegner…',live_hint:'Tritt in Echtzeit gegen einen Freund in derselben Arena an.',live_offline:'Live-Duell nicht verfügbar (Verbindung / Echtzeit-DB)',live_bad_code:'4-stelliger Code',live_notfound:'Raum nicht gefunden',live_full:'Raum bereits voll',live_self:'Das ist dein eigener Raum 😅',duel_slow_on:'Gegner verlangsamt!',duel_x2_on:'×2 aktiv!',duel_atout_slow:'Gegner verlangsamen (1×)',duel_atout_x2:'Doppelte Punkte · 10 s (1×)',duel_slowed:'Du bist verlangsamt!',duel_opp_x2:'Gegner ×2!'});
