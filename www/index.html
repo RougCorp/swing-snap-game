@@ -4671,6 +4671,7 @@ const DuelManager=(function(){
     M.live=false;M.onRelease=null;M.onFinishLive=null;M.onScore=null;M.onAtout=null;}
 
   function showResult(res,you,opp,delta,friendly,oppLeft,promo){
+    try{if(typeof Haptic!=='undefined'){(res==='win'||promo==='up')?Haptic.heavy():Haptic.light();}}catch(e){}
     const t={win:{i:'🏆',c:'#4CAF50',k:'duel_win'},lose:{i:'💔',c:'#E53935',k:'duel_lose'},draw:{i:'🤝',c:'#FF9800',k:'duel_draw'}}[res];
     $('duelResultIcon').textContent=oppLeft?'🏳️':t.i;
     const tt=$('duelResultTitle');tt.textContent=oppLeft?I18N.t('duel_opp_left'):I18N.t(t.k);tt.style.color=t.c;
@@ -5110,7 +5111,7 @@ const LiveDuel=(function(){
   let S={code:null,role:null,roomRef:null,oppUid:null,started:false,listeners:[]};
 
   function detach(){S.listeners.forEach(l=>{try{l.ref.off(l.ev,l.cb);}catch(e){}});S.listeners=[];}
-  function cleanup(removeRoom){detach();if(removeRoom&&S.roomRef&&S.role==='host'){try{S.roomRef.remove();}catch(e){}}S={code:null,role:null,roomRef:null,oppUid:null,started:false,listeners:[]};}
+  function cleanup(removeRoom){detach();try{if(S.roomRef&&uid())S.roomRef.child('left/'+uid()).onDisconnect().cancel();}catch(e){}if(removeRoom&&S.roomRef&&S.role==='host'){try{S.roomRef.remove();}catch(e){}}S={code:null,role:null,roomRef:null,oppUid:null,started:false,listeners:[]};}
   function watch(ref,ev,cb){ref.on(ev,cb);S.listeners.push({ref,ev,cb});}
 
   function beginDuel(seed,opp){if(S.started)return;S.started=true;
@@ -5126,6 +5127,9 @@ const LiveDuel=(function(){
       watch(S.roomRef.child('paused/'+S.oppUid),'value',snap=>{DuelManager.setOppPaused(!!snap.val());});
       watch(S.roomRef.child('left/'+S.oppUid),'value',snap=>{if(snap.val())DuelManager.opponentLeft();});
     }
+    // ROBUSTESSE : si JE me déconnecte (onglet fermé, crash, réseau coupé), Firebase écrit
+    // automatiquement mon 'left' → l'adversaire reçoit « Adversaire parti » au lieu d'attendre.
+    try{S.roomRef.child('left/'+uid()).onDisconnect().set(true);}catch(e){}
     DuelManager.startLive(seed,opp,{
       onRelease:(frame)=>{try{S.roomRef.child('taps/'+uid()).push(frame);}catch(e){}},
       onScore:(score)=>{try{S.roomRef.child('score/'+uid()).set(score);}catch(e){}},
