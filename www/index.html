@@ -2320,7 +2320,11 @@ this._needsBgReinit=true;
 },
 startRun(){
 window.scrollTo(0,0);
-if(this._interstitialTimer){clearTimeout(this._interstitialTimer);this._interstitialTimer=null;}
+// Une pub interstitielle était due (1 partie sur 3) mais le joueur rejoue avant le délai :
+// au lieu de l'ANNULER (ce qui supprimait presque toutes les pubs), on la montre maintenant.
+// La nouvelle partie démarre avec la balle accrochée au 1er pivot (pas de mort possible avant
+// de toucher l'écran) → aucune partie perdue pendant la pub.
+if(this._interstitialTimer){clearTimeout(this._interstitialTimer);this._interstitialTimer=null;try{AdMobAds.showInterstitial();}catch(e){}}
 SoundManager.resume();this.player.reset();this.pivots=[];this.floatingGems=[];this.lifePickups=[];this.obstacles=[];this.powerups=[];
 this.activePowerups={shield:0,slowmo:0,magnet:0,mult2:0};
 this._mult2Uses=0; // l'atout ×2 est limité à 2 activations / partie (normal & blitz)
