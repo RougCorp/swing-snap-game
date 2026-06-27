@@ -4327,9 +4327,10 @@ window.onload=()=>Game.init();
 })();
 
 /* ===== DuelManager : matchmaking + arène live + résultat + ligue ===== */
-// Ligues : reset toutes les 3 SEMAINES, le LUNDI à 6h.
-// Ancre = lundi 1 janvier 2024 06:00 (heure locale) ; périodes de 21 jours (multiple de 7 → toujours un lundi 6h).
-const LEAGUE_ANCHOR=new Date(2024,0,1,6,0,0,0).getTime();
+// Ligues : reset toutes les 3 SEMAINES, le LUNDI à 6h00 UTC (instant FIXE mondial →
+// tous les joueurs reset simultanément, classement cohérent, pas de triche par fuseau).
+// Ancre = lundi 1 janvier 2024 06:00 UTC ; périodes de 21 jours (multiple de 7 → toujours un lundi 6h UTC).
+const LEAGUE_ANCHOR=Date.UTC(2024,0,1,6,0,0);
 const LEAGUE_PERIOD_MS=21*864e5;
 function leaguePeriodIndex(){return Math.floor((Date.now()-LEAGUE_ANCHOR)/LEAGUE_PERIOD_MS);}
 function leaguePeriodEnd(){return LEAGUE_ANCHOR+(leaguePeriodIndex()+1)*LEAGUE_PERIOD_MS;}
@@ -5020,7 +5021,7 @@ const FriendManager=(function(){
   return {open,syncProfile,myCode};
 })();
 
-/* ===== LeagueBoard : classement de ligue (points, période 2 semaines) ===== */
+/* ===== LeagueBoard : classement de ligue (points, reset doux toutes les 3 semaines, lundi 6h UTC) ===== */
 const LeagueBoard=(function(){
   function db(){const LB=(typeof WeeklyLeaderboard!=='undefined')?WeeklyLeaderboard:null;return LB&&LB._db;}
   function uid(){const LB=(typeof WeeklyLeaderboard!=='undefined')?WeeklyLeaderboard:null;return LB&&LB._uid;}
