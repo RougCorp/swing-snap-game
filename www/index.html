@@ -1309,7 +1309,19 @@ function bVig(c,w,h){const g=c.createRadialGradient(w*.5,h*.5,h*.2,w*.5,h*.5,w*.
 function bStars(c,w,h,n,col){c.fillStyle=col||'#fff';for(let i=0;i<n;i++){const x=(i*53.13)%w,y=(i*97.31)%h;c.globalAlpha=.3+((i*7)%4)*.18;c.beginPath();c.arc(x,y,(i%5===0?1.2:.6),0,6.28);c.fill();}c.globalAlpha=1;}
 // Vignette/profondeur appliquée par-dessus N'IMPORTE QUEL fond (subtile sur clair,
 // plus marquée sur sombre) → qualité homogène sur les 40 fonds sans les réécrire.
-function bgPolish(c,w,h,dark){c.save();const g=c.createRadialGradient(w/2,h*.42,Math.min(w,h)*.28,w/2,h*.55,Math.max(w,h)*.62);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,dark?'rgba(0,0,0,.34)':'rgba(70,45,20,.13)');c.fillStyle=g;c.fillRect(0,0,w,h);if(dark){const t=c.createLinearGradient(0,0,0,h*.4);t.addColorStop(0,'rgba(255,255,255,.05)');t.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=t;c.fillRect(0,0,w,h*.4);}c.restore();}
+// vignette + lumière du haut, identiques chaque frame → générées UNE fois en cache hors-écran
+// (clé = taille + fond clair/sombre) puis blittées : plus de création de dégradé par frame.
+let _bgPolishCache=null,_bgPolishKey='';
+function bgPolish(c,w,h,dark){
+  const key=w+'x'+h+'/'+(dark?1:0);
+  if(_bgPolishKey!==key||!_bgPolishCache){
+    const oc=_bgPolishCache||document.createElement('canvas');oc.width=w;oc.height=h;const g=oc.getContext('2d');g.clearRect(0,0,w,h);
+    const rg=g.createRadialGradient(w/2,h*.42,Math.min(w,h)*.28,w/2,h*.55,Math.max(w,h)*.62);rg.addColorStop(0,'rgba(0,0,0,0)');rg.addColorStop(1,dark?'rgba(0,0,0,.34)':'rgba(70,45,20,.13)');g.fillStyle=rg;g.fillRect(0,0,w,h);
+    if(dark){const t=g.createLinearGradient(0,0,0,h*.4);t.addColorStop(0,'rgba(255,255,255,.05)');t.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=t;g.fillRect(0,0,w,h*.4);}
+    _bgPolishCache=oc;_bgPolishKey=key;
+  }
+  c.drawImage(_bgPolishCache,0,0,w,h);
+}
 const BANNERS={
 'classic':{price:0,name:'Crème',draw:(c,w,h)=>{const g=c.createLinearGradient(0,0,0,h);g.addColorStop(0,'#FFFDF8');g.addColorStop(1,'#E9DCC8');c.fillStyle=g;c.fillRect(0,0,w,h);const r=c.createRadialGradient(w*.28,h*.15,0,w*.28,h*.15,w*.6);r.addColorStop(0,'rgba(255,255,255,.55)');r.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=r;c.fillRect(0,0,w,h);c.fillStyle='rgba(142,99,180,.12)';for(let i=0;i<9;i++){const x=(i*89)%w,y=(i*47)%h;c.beginPath();c.arc(x,y,1.2,0,6.28);c.fill();}bVig(c,w,h);bGloss(c,w,h);}},
 'sunset':{priceBlue:12,name:'Crépuscule',draw:(c,w,h)=>{const g=c.createLinearGradient(0,0,0,h);g.addColorStop(0,'#FFD89B');g.addColorStop(.4,'#FF7E5F');g.addColorStop(.75,'#C2185B');g.addColorStop(1,'#3A1C71');c.fillStyle=g;c.fillRect(0,0,w,h);const sx=w*.74,sy=h*.52;const sg=c.createRadialGradient(sx,sy,0,sx,sy,h*.65);sg.addColorStop(0,'rgba(255,247,210,.95)');sg.addColorStop(.3,'rgba(255,200,120,.5)');sg.addColorStop(1,'rgba(255,160,80,0)');c.fillStyle=sg;c.fillRect(0,0,w,h);c.save();c.globalAlpha=.16;c.strokeStyle='#FFF3D0';c.lineWidth=2;for(let a=0;a<7;a++){c.beginPath();c.moveTo(sx,sy);const ang=a*.9+.2;c.lineTo(sx+Math.cos(ang)*w,sy+Math.sin(ang)*w);c.stroke();}c.restore();c.fillStyle='rgba(255,243,205,.95)';c.beginPath();c.arc(sx,sy,h*.15,0,6.28);c.fill();c.fillStyle='rgba(48,22,70,.6)';c.beginPath();c.moveTo(0,h);c.lineTo(0,h*.8);c.quadraticCurveTo(w*.3,h*.64,w*.55,h*.76);c.quadraticCurveTo(w*.8,h*.88,w,h*.74);c.lineTo(w,h);c.closePath();c.fill();bGloss(c,w,h);}},
@@ -4644,8 +4656,10 @@ const DuelManager=(function(){
       showResult(res,you,opp,0,true);
       M.live=false;M.onRelease=null;M.onFinishLive=null;M.onScore=null;M.onAtout=null;return;
     }
+    const _oldRank=rankFor(d.leaguePoints||0);
     if(res==='win'){d.duelWins++;delta=12;}else if(res==='lose'){d.duelLosses++;delta=-12;}else{d.duelDraws=(d.duelDraws||0)+1;delta=2;} // gains modérés → montée de ligue progressive
     d.leaguePoints=Math.max(0,(d.leaguePoints||0)+delta);
+    const _newRank=rankFor(d.leaguePoints),_promo=(_oldRank.name!==_newRank.name)?(delta>0?'up':'down'):null; // changement de division/palier
     d.duelBestLeague=Math.max(d.duelBestLeague||0,d.leaguePoints); // pour les missions "atteindre une ligue"
     recordH2H();
     try{if(typeof DuelMissions!=='undefined')DuelMissions.onDuel(res,you,d.leaguePoints);}catch(e){}
@@ -4653,10 +4667,10 @@ const DuelManager=(function(){
     publishRun().catch(()=>{});
     try{FriendManager.syncProfile();}catch(e){} // pousse les nouveaux points de ligue au classement
     if(M.live&&M.onFinishLive)try{M.onFinishLive(M.P.score,M.P.perfects);}catch(e){}
-    showResult(res,you,opp,delta);
+    showResult(res,you,opp,delta,false,false,_promo);
     M.live=false;M.onRelease=null;M.onFinishLive=null;M.onScore=null;M.onAtout=null;}
 
-  function showResult(res,you,opp,delta,friendly,oppLeft){
+  function showResult(res,you,opp,delta,friendly,oppLeft,promo){
     const t={win:{i:'🏆',c:'#4CAF50',k:'duel_win'},lose:{i:'💔',c:'#E53935',k:'duel_lose'},draw:{i:'🤝',c:'#FF9800',k:'duel_draw'}}[res];
     $('duelResultIcon').textContent=oppLeft?'🏳️':t.i;
     const tt=$('duelResultTitle');tt.textContent=oppLeft?I18N.t('duel_opp_left'):I18N.t(t.k);tt.style.color=t.c;
@@ -4668,7 +4682,10 @@ const DuelManager=(function(){
     const lg=$('duelResultLeague');
     if(friendly){lg.innerHTML='<span style="opacity:.8">🤝 '+I18N.t('duel_friendly')+'</span>';}
     else{const tier=tierFor(DataManager.data.leaguePoints);
-      lg.innerHTML=(delta>=0?'+':'')+delta+' <span style="opacity:.7">'+I18N.t('duel_points')+'</span> · <b style="color:'+tier.color+'">'+tier.name+'</b> ('+DataManager.data.leaguePoints+')';}
+      let promoHTML='';
+      if(promo==='up'){promoHTML='<div style="font-weight:900;color:#4CAF50;font-size:1.05rem;margin-bottom:4px">⬆️ '+I18N.t('duel_promoted',tier.name)+'</div>';try{celebrate('fire');}catch(e){}}
+      else if(promo==='down'){promoHTML='<div style="font-weight:900;color:#FF9800;font-size:.95rem;margin-bottom:4px">⬇️ '+I18N.t('duel_demoted',tier.name)+'</div>';}
+      lg.innerHTML=promoHTML+(delta>=0?'+':'')+delta+' <span style="opacity:.7">'+I18N.t('duel_points')+'</span> · <b style="color:'+tier.color+'">'+tier.name+'</b> ('+DataManager.data.leaguePoints+')';}
     $('duelCanvas').style.display='none';$('duelHud').style.display='none';$('duelQuitBtn').style.display='none';
     $('duelResult').style.display='flex';M.active=false;}
 
@@ -4792,12 +4809,12 @@ const DuelManager=(function(){
     Object.assign(I18N.L.fr,{duel_title:'DUEL',duel_quick:'Match rapide',duel_play_bot:'Jouer contre un bot',duel_cancel:'Annuler',duel_searching:'Recherche d\'un adversaire…',duel_botswitch:'Aucun joueur trouvé — affrontement d\'un bot…',duel_found:'Adversaire trouvé !',duel_win:'VICTOIRE !',duel_lose:'DÉFAITE',duel_draw:'ÉGALITÉ',duel_points:'pts',duel_rematch:'Revanche',duel_league:'Ligue',duel_w:'V',duel_l:'D',duel_d:'N',duel_no_games:'Aucun duel joué',duel_maxtier:'Palier maximum atteint 👑',duel_menu_btn:'DUELS',duel_quit_confirm:'Quitter le duel ? Tu perds 20 points de ligue. 💔',duel_quit_penalty:'Duel abandonné · −20 pts',duel_slow_on:'Adversaire ralenti !',duel_x2_on:'×2 activé !',duel_atout_slow:'Ralentir l\'adversaire (1×)',duel_atout_x2:'Double points · 10 s (1×)',duel_slowed:'Tu es ralenti !',duel_slowed_by:'{0} t\'a ralenti !',duel_opp_x2:'Adversaire ×2 !'});
     Object.assign(I18N.L.en,{duel_title:'DUEL',duel_quick:'Quick match',duel_play_bot:'Play against a bot',duel_cancel:'Cancel',duel_searching:'Searching for an opponent…',duel_botswitch:'No player found — facing a bot…',duel_found:'Opponent found!',duel_win:'VICTORY!',duel_lose:'DEFEAT',duel_draw:'DRAW',duel_points:'pts',duel_rematch:'Rematch',duel_league:'League',duel_w:'W',duel_l:'L',duel_d:'D',duel_no_games:'No duels played',duel_maxtier:'Top tier reached 👑',duel_menu_btn:'DUELS',duel_quit_confirm:'Quit the duel? You lose 20 league points. 💔',duel_quit_penalty:'Duel abandoned · −20 pts',duel_slow_on:'Opponent slowed!',duel_x2_on:'×2 active!',duel_atout_slow:'Slow the opponent (1×)',duel_atout_x2:'Double points · 10s (1×)',duel_slowed:'You are slowed!',duel_slowed_by:'{0} slowed you!',duel_opp_x2:'Opponent ×2!'});
     // pause/abandon synchronisés
-    Object.assign(I18N.L.fr,{duel_paused:'En pause',duel_resume:'Reprendre',duel_quit_btn:'Quitter',duel_opp_paused:'Adversaire en pause',duel_wait:'Patiente…',duel_quit_friendly_q:'Quitter le duel amical ? Aucun point perdu.',duel_quit_online_q:'Quitter le duel classé ? Tu perds 20 points de ligue. 💔',duel_opp_left:'Adversaire parti'});
-    Object.assign(I18N.L.en,{duel_paused:'Paused',duel_resume:'Resume',duel_quit_btn:'Quit',duel_opp_paused:'Opponent paused',duel_wait:'Please wait…',duel_quit_friendly_q:'Leave the friendly duel? No points lost.',duel_quit_online_q:'Leave the ranked duel? You lose 20 league points. 💔',duel_opp_left:'Opponent left'});
-    if(I18N.L.es)Object.assign(I18N.L.es,{duel_paused:'En pausa',duel_resume:'Reanudar',duel_quit_btn:'Salir',duel_opp_paused:'Rival en pausa',duel_wait:'Espera…',duel_quit_friendly_q:'¿Salir del duelo amistoso? No pierdes puntos.',duel_quit_online_q:'¿Salir del duelo clasificado? Pierdes 20 puntos de liga. 💔',duel_opp_left:'El rival se fue'});
-    if(I18N.L.de)Object.assign(I18N.L.de,{duel_paused:'Pausiert',duel_resume:'Fortsetzen',duel_quit_btn:'Verlassen',duel_opp_paused:'Gegner pausiert',duel_wait:'Bitte warten…',duel_quit_friendly_q:'Freundschaftsduell verlassen? Keine Punkte verloren.',duel_quit_online_q:'Ranglistenduell verlassen? Du verlierst 20 Liga-Punkte. 💔',duel_opp_left:'Gegner hat verlassen'});
-    if(I18N.L.it)Object.assign(I18N.L.it,{duel_paused:'In pausa',duel_resume:'Riprendi',duel_quit_btn:'Esci',duel_opp_paused:'Avversario in pausa',duel_wait:'Attendi…',duel_quit_friendly_q:'Uscire dal duello amichevole? Nessun punto perso.',duel_quit_online_q:'Uscire dal duello classificato? Perdi 20 punti lega. 💔',duel_opp_left:'Avversario uscito'});
-    if(I18N.L.pt)Object.assign(I18N.L.pt,{duel_paused:'Em pausa',duel_resume:'Retomar',duel_quit_btn:'Sair',duel_opp_paused:'Adversário em pausa',duel_wait:'Aguarda…',duel_quit_friendly_q:'Sair do duelo amigável? Não perdes pontos.',duel_quit_online_q:'Sair do duelo classificado? Perdes 20 pontos de liga. 💔',duel_opp_left:'Adversário saiu'});
+    Object.assign(I18N.L.fr,{duel_paused:'En pause',duel_resume:'Reprendre',duel_quit_btn:'Quitter',duel_opp_paused:'Adversaire en pause',duel_wait:'Patiente…',duel_quit_friendly_q:'Quitter le duel amical ? Aucun point perdu.',duel_quit_online_q:'Quitter le duel classé ? Tu perds 20 points de ligue. 💔',duel_opp_left:'Adversaire parti',duel_promoted:'Promu en {0} !',duel_demoted:'Rétrogradé en {0}'});
+    Object.assign(I18N.L.en,{duel_paused:'Paused',duel_resume:'Resume',duel_quit_btn:'Quit',duel_opp_paused:'Opponent paused',duel_wait:'Please wait…',duel_quit_friendly_q:'Leave the friendly duel? No points lost.',duel_quit_online_q:'Leave the ranked duel? You lose 20 league points. 💔',duel_opp_left:'Opponent left',duel_promoted:'Promoted to {0}!',duel_demoted:'Demoted to {0}'});
+    if(I18N.L.es)Object.assign(I18N.L.es,{duel_paused:'En pausa',duel_resume:'Reanudar',duel_quit_btn:'Salir',duel_opp_paused:'Rival en pausa',duel_wait:'Espera…',duel_quit_friendly_q:'¿Salir del duelo amistoso? No pierdes puntos.',duel_quit_online_q:'¿Salir del duelo clasificado? Pierdes 20 puntos de liga. 💔',duel_opp_left:'El rival se fue',duel_promoted:'¡Ascendido a {0}!',duel_demoted:'Descendido a {0}'});
+    if(I18N.L.de)Object.assign(I18N.L.de,{duel_paused:'Pausiert',duel_resume:'Fortsetzen',duel_quit_btn:'Verlassen',duel_opp_paused:'Gegner pausiert',duel_wait:'Bitte warten…',duel_quit_friendly_q:'Freundschaftsduell verlassen? Keine Punkte verloren.',duel_quit_online_q:'Ranglistenduell verlassen? Du verlierst 20 Liga-Punkte. 💔',duel_opp_left:'Gegner hat verlassen',duel_promoted:'Aufgestiegen zu {0}!',duel_demoted:'Abgestiegen zu {0}'});
+    if(I18N.L.it)Object.assign(I18N.L.it,{duel_paused:'In pausa',duel_resume:'Riprendi',duel_quit_btn:'Esci',duel_opp_paused:'Avversario in pausa',duel_wait:'Attendi…',duel_quit_friendly_q:'Uscire dal duello amichevole? Nessun punto perso.',duel_quit_online_q:'Uscire dal duello classificato? Perdi 20 punti lega. 💔',duel_opp_left:'Avversario uscito',duel_promoted:'Promosso a {0}!',duel_demoted:'Retrocesso a {0}'});
+    if(I18N.L.pt)Object.assign(I18N.L.pt,{duel_paused:'Em pausa',duel_resume:'Retomar',duel_quit_btn:'Sair',duel_opp_paused:'Adversário em pausa',duel_wait:'Aguarda…',duel_quit_friendly_q:'Sair do duelo amigável? Não perdes pontos.',duel_quit_online_q:'Sair do duelo classificado? Perdes 20 pontos de liga. 💔',duel_opp_left:'Adversário saiu',duel_promoted:'Promovido a {0}!',duel_demoted:'Despromovido a {0}'});
     // noms des paliers de ligue (traduits)
     Object.assign(I18N.L.fr,{tier_fer:'Fer',tier_bronze:'Bronze',tier_argent:'Argent',tier_or:'Or',tier_platine:'Platine',tier_diamant:'Diamant',tier_ascendant:'Ascendant',tier_immortel:'Immortel',tier_radiant:'Radiant'});
     Object.assign(I18N.L.en,{tier_fer:'Iron',tier_bronze:'Bronze',tier_argent:'Silver',tier_or:'Gold',tier_platine:'Platinum',tier_diamant:'Diamond',tier_ascendant:'Ascendant',tier_immortel:'Immortal',tier_radiant:'Radiant'});
