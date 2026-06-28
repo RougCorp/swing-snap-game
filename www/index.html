@@ -965,6 +965,7 @@ const DataManager={
 data:{highScore:0,gems:50,gemsBlue:30,skins:['classic'],trails:['classic'],currentSkin:'classic',currentTrail:'classic',currentBg:'classic',backgrounds:['classic'],emblems:['classic'],banners:['classic'],currentEmblem:'classic',currentBanner:'classic',noAds:false,stats:{totalPivots:0,totalScore:0,totalRuns:0,totalGemsCollected:0,bestGemsInRun:0,blitzRuns:0,weeklySubmitCount:0,weeklyTop10Count:0,totalPerfects:0,totalMaxMultiplier:0,weeklyPodiumCount:0},sessionRuns:0,missionsProgress:{},unlockedPacks:[],claimedMissions:[],lastDailyDate:0,claimedDailies:[],musicVol:10,sfxVol:75,dailyStats:{date:0,runs:0,score:0,gems:0,bestRun:0},lives:3,livesLastRegen:0,adsLivesToday:0,adsLivesDate:0,notificationsEnabled:true,reduceFx:false,duelIntroSeen:false,duelDailyWinDate:'',campaignLevel:1,campaignStars:{},campaignFlawless:{},dailyCampaignDate:0,dailyCampaignDone:false,streak:0,streakLastDate:0,streakShownToday:false,_streakGemReward:0,_streakSkinUnlocked:false,installDate:0,starterOfferShown:false,starterOfferClaimed:false,timeAttackBest:0,storedPowerups:{shield:0,slowmo:0,magnet:0,mult2:0},adRouletteDate:'',adRouletteCount:0,playerName:'',nameIsLocked:false,weeklyScores:[],weeklyScoreWeek:0,lastWeekTopScores:[],v200TutoSeen:false,tutoHints:{cone:false,mult:false,pu:false}},
 load(){try{const s=localStorage.getItem('swingSnapData');if(s){const saved=JSON.parse(s);this.data={...this.data,...saved,stats:{...this.data.stats,...(saved.stats||{})},dailyStats:{...this.data.dailyStats,...(saved.dailyStats||{})},storedPowerups:{...this.data.storedPowerups,...(saved.storedPowerups||{})},tutoHints:{...this.data.tutoHints,...(saved.tutoHints||{})}};}this.checkDailyReset();this.updateUI();
 try{reconcileOwnedPacks();}catch(e){} // re-livre aux propriétaires tout contenu ajouté à un pack déjà acheté
+    try{reconcileDivisionUnlocks(false);}catch(e){} // re-livre les cosmétiques de palier déjà mérités (silencieux au chargement)
 // Record install date on first ever load
 if(!this.data.installDate){this.data.installDate=Date.now();this.save();}
 // Streak popup — shown on first open of each new day
@@ -1311,8 +1312,8 @@ const EMBLEMS={
 // ===== Emblèmes sport =====
 'soccer':{priceBlue:14,name:'Ballon',color:'#43A047',draw:c=>{crest(c,{top:'#C8E6C9',mid:'#66BB6A',bot:'#1B5E20',border:'#0E3D12',inner:'rgba(255,255,255,.45)'});c.fillStyle='#fff';c.beginPath();c.arc(0,0,5.5,0,6.28);c.fill();c.fillStyle='#1b1b1b';const pent=(cx,cy,r,rot)=>{c.beginPath();for(let i=0;i<5;i++){const a=rot+i*1.2566-1.5708;i?c.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r):c.moveTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);}c.closePath();c.fill();};pent(0,0,2,0);c.strokeStyle='#1b1b1b';c.lineWidth=.6;c.beginPath();c.arc(0,0,5.5,0,6.28);c.stroke();}},
 'hoop':{priceBlue:14,name:'Basket',color:'#FB8C00',draw:c=>{crest(c,{top:'#FFE0B2',mid:'#FB8C00',bot:'#E65100',border:'#7A2E00',inner:'rgba(255,255,255,.4)',glow:'rgba(255,140,0,.4)'});c.fillStyle='#FB8C00';c.strokeStyle='#3E2723';c.lineWidth=.8;c.beginPath();c.arc(0,0,5.5,0,6.28);c.fill();c.beginPath();c.moveTo(0,-5.5);c.lineTo(0,5.5);c.moveTo(-5.5,0);c.lineTo(5.5,0);c.stroke();c.beginPath();c.arc(-7,0,4.5,-0.9,0.9);c.stroke();c.beginPath();c.arc(7,0,4.5,3.14159-0.9,3.14159+0.9);c.stroke();}},
-'whistle':{priceBlue:12,name:'Sifflet',color:'#607D8B',draw:c=>{crest(c,{top:'#CFD8DC',mid:'#607D8B',bot:'#263238',border:'#10191D',inner:'rgba(255,255,255,.4)'});c.fillStyle='#ECEFF1';c.beginPath();c.arc(-1,1,4,0,6.28);c.fill();c.fillRect(-1,-3,6,4);c.fillStyle='#90A4AE';c.beginPath();c.arc(-1,1,1.4,0,6.28);c.fill();c.strokeStyle='#ECEFF1';c.lineWidth=1.2;c.lineCap='round';c.beginPath();c.moveTo(5,-3);c.quadraticCurveTo(9,-6,8,-1);c.stroke();c.lineCap='butt';}},
-'medal':{priceBlue:16,name:'Médaille',color:'#FFD700',draw:c=>{crest(c,{top:'#FFF3C4',mid:'#FFCE3A',bot:'#C8860B',border:'#8A5A00',inner:'rgba(255,255,255,.5)',glow:'rgba(255,200,0,.4)'});c.fillStyle='#E53935';c.beginPath();c.moveTo(-4,-8);c.lineTo(-1,-2);c.lineTo(-4,-2);c.closePath();c.fill();c.fillStyle='#1E88E5';c.beginPath();c.moveTo(4,-8);c.lineTo(1,-2);c.lineTo(4,-2);c.closePath();c.fill();const g=c.createRadialGradient(-1,1,0,0,2,6);g.addColorStop(0,'#FFF59D');g.addColorStop(1,'#F9A825');c.fillStyle=g;c.beginPath();c.arc(0,3,5,0,6.28);c.fill();c.strokeStyle='#8A5A00';c.lineWidth=.7;c.stroke();c.fillStyle='#8A5A00';c.font='bold 5px Arial';c.textAlign='center';c.textBaseline='middle';c.fillText('1',0,3.3);}}
+'whistle':{priceBlue:0,type:'mission',name:'Sifflet',color:'#607D8B',draw:c=>{crest(c,{top:'#CFD8DC',mid:'#607D8B',bot:'#263238',border:'#10191D',inner:'rgba(255,255,255,.4)'});c.fillStyle='#ECEFF1';c.beginPath();c.arc(-1,1,4,0,6.28);c.fill();c.fillRect(-1,-3,6,4);c.fillStyle='#90A4AE';c.beginPath();c.arc(-1,1,1.4,0,6.28);c.fill();c.strokeStyle='#ECEFF1';c.lineWidth=1.2;c.lineCap='round';c.beginPath();c.moveTo(5,-3);c.quadraticCurveTo(9,-6,8,-1);c.stroke();c.lineCap='butt';}},
+'medal':{priceBlue:0,type:'division',divPts:900,name:'Médaille',color:'#FFD700',draw:c=>{crest(c,{top:'#FFF3C4',mid:'#FFCE3A',bot:'#C8860B',border:'#8A5A00',inner:'rgba(255,255,255,.5)',glow:'rgba(255,200,0,.4)'});c.fillStyle='#E53935';c.beginPath();c.moveTo(-4,-8);c.lineTo(-1,-2);c.lineTo(-4,-2);c.closePath();c.fill();c.fillStyle='#1E88E5';c.beginPath();c.moveTo(4,-8);c.lineTo(1,-2);c.lineTo(4,-2);c.closePath();c.fill();const g=c.createRadialGradient(-1,1,0,0,2,6);g.addColorStop(0,'#FFF59D');g.addColorStop(1,'#F9A825');c.fillStyle=g;c.beginPath();c.arc(0,3,5,0,6.28);c.fill();c.strokeStyle='#8A5A00';c.lineWidth=.7;c.stroke();c.fillStyle='#8A5A00';c.font='bold 5px Arial';c.textAlign='center';c.textBaseline='middle';c.fillText('1',0,3.3);}}
 };
 
 // === BANNERS (profil — achetés avec gemmes BLEUES) ===
@@ -1357,9 +1358,9 @@ const BANNERS={
 'eclipse_ban':{priceBlue:20,name:'Éclipse',draw:(c,w,h)=>{const g=c.createLinearGradient(0,0,0,h);g.addColorStop(0,'#0a0a18');g.addColorStop(1,'#241640');c.fillStyle=g;c.fillRect(0,0,w,h);if(typeof bStars==='function')bStars(c,w,h,18,'rgba(255,255,255,.7)');const cx=w*.72,cy=h*.5,cor=c.createRadialGradient(cx,cy,8,cx,cy,h*.75);cor.addColorStop(0,'rgba(255,179,0,0)');cor.addColorStop(.55,'rgba(255,179,0,.4)');cor.addColorStop(.63,'rgba(255,224,130,.7)');cor.addColorStop(.72,'rgba(255,224,130,0)');c.fillStyle=cor;c.fillRect(0,0,w,h);c.fillStyle='#07070f';c.beginPath();c.arc(cx,cy,h*.32,0,6.28);c.fill();bGloss(c,w,h);}},
 'prism_ban':{priceBlue:22,name:'Prisme',draw:(c,w,h)=>{const g=c.createLinearGradient(0,0,w,h);g.addColorStop(0,'#1a0a2e');g.addColorStop(1,'#0a1430');c.fillStyle=g;c.fillRect(0,0,w,h);const cols=['#FF1744','#FFD600','#00E676','#00B0FF','#D500F9'];c.save();c.translate(w/2,h/2);for(let i=0;i<5;i++){c.save();c.globalAlpha=.2;c.fillStyle=cols[i];c.rotate(-0.5+i*0.25);c.fillRect(-w,(i-2)*9-5,w*2,11);c.restore();}c.restore();bGloss(c,w,h);bVig(c,w,h);}},
 // ===== Bannières sport =====
-'pitch_ban':{priceBlue:16,name:'Terrain',draw:(c,w,h)=>{const g=c.createLinearGradient(0,0,0,h);g.addColorStop(0,'#43A047');g.addColorStop(1,'#1B5E20');c.fillStyle=g;c.fillRect(0,0,w,h);c.save();c.globalAlpha=.12;c.fillStyle='#A5D6A7';const sw=w/8;for(let i=0;i<8;i+=2)c.fillRect(i*sw,0,sw,h);c.restore();c.strokeStyle='rgba(255,255,255,.5)';c.lineWidth=2;c.beginPath();c.arc(w/2,h/2,h*.32,0,6.28);c.stroke();c.beginPath();c.moveTo(w/2,0);c.lineTo(w/2,h);c.stroke();bGloss(c,w,h);}},
+'pitch_ban':{priceBlue:0,type:'mission',name:'Terrain',draw:(c,w,h)=>{const g=c.createLinearGradient(0,0,0,h);g.addColorStop(0,'#43A047');g.addColorStop(1,'#1B5E20');c.fillStyle=g;c.fillRect(0,0,w,h);c.save();c.globalAlpha=.12;c.fillStyle='#A5D6A7';const sw=w/8;for(let i=0;i<8;i+=2)c.fillRect(i*sw,0,sw,h);c.restore();c.strokeStyle='rgba(255,255,255,.5)';c.lineWidth=2;c.beginPath();c.arc(w/2,h/2,h*.32,0,6.28);c.stroke();c.beginPath();c.moveTo(w/2,0);c.lineTo(w/2,h);c.stroke();bGloss(c,w,h);}},
 'court_ban':{priceBlue:16,name:'Parquet',draw:(c,w,h)=>{const g=c.createLinearGradient(0,0,0,h);g.addColorStop(0,'#D49A52');g.addColorStop(1,'#B97A33');c.fillStyle=g;c.fillRect(0,0,w,h);c.save();c.globalAlpha=.1;c.strokeStyle='#7A4A12';c.lineWidth=2;for(let x=0;x<w;x+=16){c.beginPath();c.moveTo(x,0);c.lineTo(x,h);c.stroke();}c.restore();c.strokeStyle='rgba(255,255,255,.55)';c.lineWidth=2;c.beginPath();c.arc(w*.5,h*.5,h*.34,0,6.28);c.stroke();c.beginPath();c.moveTo(0,h*.5);c.lineTo(w,h*.5);c.stroke();bGloss(c,w,h);bVig(c,w,h);}},
-'stadium_ban':{priceBlue:20,name:'Stade',draw:(c,w,h)=>{const sky=c.createLinearGradient(0,0,0,h);sky.addColorStop(0,'#0d1b2a');sky.addColorStop(1,'#16324f');c.fillStyle=sky;c.fillRect(0,0,w,h);if(typeof bStars==='function')bStars(c,w,h,14,'rgba(255,255,255,.5)');[[w*.25,h*.2],[w*.75,h*.2]].forEach(L=>{const gl=c.createRadialGradient(L[0],L[1],0,L[0],L[1],h*.7);gl.addColorStop(0,'rgba(255,255,230,.45)');gl.addColorStop(1,'rgba(255,255,230,0)');c.fillStyle=gl;c.fillRect(0,0,w,h);});c.fillStyle='#1B5E20';c.fillRect(0,h*.7,w,h*.3);c.strokeStyle='rgba(255,255,255,.35)';c.lineWidth=1.5;c.beginPath();c.moveTo(0,h*.82);c.lineTo(w,h*.82);c.stroke();bGloss(c,w,h);}}
+'stadium_ban':{priceBlue:0,type:'division',divPts:1500,name:'Stade',draw:(c,w,h)=>{const sky=c.createLinearGradient(0,0,0,h);sky.addColorStop(0,'#0d1b2a');sky.addColorStop(1,'#16324f');c.fillStyle=sky;c.fillRect(0,0,w,h);if(typeof bStars==='function')bStars(c,w,h,14,'rgba(255,255,255,.5)');[[w*.25,h*.2],[w*.75,h*.2]].forEach(L=>{const gl=c.createRadialGradient(L[0],L[1],0,L[0],L[1],h*.7);gl.addColorStop(0,'rgba(255,255,230,.45)');gl.addColorStop(1,'rgba(255,255,230,0)');c.fillStyle=gl;c.fillRect(0,0,w,h);});c.fillStyle='#1B5E20';c.fillRect(0,h*.7,w,h*.3);c.strokeStyle='rgba(255,255,255,.35)';c.lineWidth=1.5;c.beginPath();c.moveTo(0,h*.82);c.lineTo(w,h*.82);c.stroke();bGloss(c,w,h);}}
 };
 
 // === ACHIEVEMENTS ===
@@ -2794,6 +2795,7 @@ if(!has&&id!=='classic'){
 if(item.type==='pack'){locked=true;pd='PACK';li='📦';lc+=' lock-pack';}
 else if(item.type==='mission'){locked=true;pd='MISSION';li='🎯';lc+=' lock-mission';}
 else if(item.type==='campaign'){locked=true;pd=I18N.t('camp_level_badge')+item.campaignLevel;li='⚔️';lc+=' lock-campaign';}
+else if(item.type==='division'){locked=true;pd=(()=>{try{return DuelManager.rankFor(item.divPts).name;}catch(e){return '🏆';}})();li='🏆';lc+=' lock-campaign';}
 else if(item.type==='streak'){locked=true;pd='🔥 14 JOURS';li='🔥';lc+=' lock-mission';}
 else pd=price+' '+gemIco;
 }else pd='✓';
@@ -2810,7 +2812,7 @@ DataManager.save();showToast(I18N.t('toast_bought'));updBlueHud();renderShop();
 }
 }else showToast(I18N.t('toast_not_enough'));
 };
-const handleLocked=()=>{if(item.type==='pack'){$('shopScreen').classList.remove('active');$('iapScreen').classList.add('active');renderPacks();showToast(I18N.t('toast_pack_avail'));}else if(item.type==='campaign')showToast(I18N.t('toast_campaign_unlock',item.campaignLevel));else if(item.type==='streak')showToast(I18N.t('toast_streak_locked')||'🔥 Play 14 days in a row to unlock!');else showToast(I18N.t('toast_via_missions'));};
+const handleLocked=()=>{if(item.type==='pack'){$('shopScreen').classList.remove('active');$('iapScreen').classList.add('active');renderPacks();showToast(I18N.t('toast_pack_avail'));}else if(item.type==='campaign')showToast(I18N.t('toast_campaign_unlock',item.campaignLevel));else if(item.type==='division')showToast(I18N.t('toast_division_locked',(()=>{try{return DuelManager.rankFor(item.divPts).name;}catch(e){return '';}})()));else if(item.type==='streak')showToast(I18N.t('toast_streak_locked')||'🔥 Play 14 days in a row to unlock!');else showToast(I18N.t('toast_via_missions'));};
 
 if(cfg.kind==='bg'){
 const div=document.createElement('div');
@@ -3414,6 +3416,12 @@ const UNLOCK_MISSION_DEFS=[
 {g:40,stat:'bestRun',r:'mystical',rt:'bg'},
 {g:1500,stat:'totalGemsCollected',r:'matrix',rt:'bg'},
 ]},
+{id:'ue',nameKey:'unlock_emblems_name',icon:'🛡️',tiers:[
+{g:10,stat:'duelPlayed',r:'whistle',rt:'emblem'},
+]},
+{id:'uban',nameKey:'unlock_banners_name',icon:'🏁',tiers:[
+{g:12,stat:'duelWins',r:'pitch_ban',rt:'banner'},
+]},
 ];
 // ═══════ DUEL MISSION DEFS (tiered) ═══════
 const DUEL_MISSION_DEFS=[
@@ -3426,6 +3434,8 @@ function getOwnedCosmetic(r,rt){
 if(rt==='ball')return DataManager.data.skins.includes(r);
 if(rt==='trail')return DataManager.data.trails.includes(r);
 if(rt==='bg')return DataManager.data.backgrounds.includes(r);
+if(rt==='emblem')return(DataManager.data.emblems||[]).includes(r);
+if(rt==='banner')return(DataManager.data.banners||[]).includes(r);
 return false;
 }
 function getClaimableUnlockTiers(){
@@ -3620,7 +3630,7 @@ const owned=getOwnedCosmetic(t.r,t.rt);
 const prog=getMissionProgress({stat:t.stat});
 const isClaimable=prog>=t.g&&!owned;
 const pct=Math.min(100,Math.floor(prog/t.g*100));
-const rtLabel=t.rt==='ball'?I18N.t('balls'):t.rt==='trail'?I18N.t('trails'):I18N.t('backgrounds');
+const rtLabel=t.rt==='ball'?I18N.t('balls'):t.rt==='trail'?I18N.t('trails'):t.rt==='bg'?I18N.t('backgrounds'):t.rt==='emblem'?I18N.t('emblems'):I18N.t('banners');
 if(owned){
 rows+=`<div style="display:flex;justify-content:space-between;font-size:.68rem;padding:3px 0;opacity:.45;border-bottom:1px solid rgba(0,0,0,.04)"><span style="text-decoration:line-through">🏅 ${_unlockDesc(t)}</span><span style="color:var(--gold)">🔓 ${rtLabel} ✓</span></div>`;
 }else if(i<=Math.max(firstActive,0)+2){
@@ -3639,9 +3649,11 @@ const d=UNLOCK_MISSION_DEFS.find(x=>x.id===did);const t=d.tiers[ti];
 if(t.rt==='ball'&&!DataManager.data.skins.includes(t.r))DataManager.data.skins.push(t.r);
 else if(t.rt==='trail'&&!DataManager.data.trails.includes(t.r))DataManager.data.trails.push(t.r);
 else if(t.rt==='bg'&&!DataManager.data.backgrounds.includes(t.r))DataManager.data.backgrounds.push(t.r);
-const rtLabel=t.rt==='ball'?I18N.t('balls'):t.rt==='trail'?I18N.t('trails'):I18N.t('backgrounds');
-showToast(t.rt==='ball'?I18N.t('toast_skin_unlock'):t.rt==='trail'?I18N.t('toast_trail_unlock'):I18N.t('toast_bg_unlock'));
-showMissionBanner(I18N.t(d.nameKey),t.rt==='ball'?I18N.t('toast_skin_unlock'):t.rt==='trail'?I18N.t('toast_trail_unlock'):I18N.t('toast_bg_unlock'));
+else if(t.rt==='emblem'){if(!DataManager.data.emblems)DataManager.data.emblems=[];if(!DataManager.data.emblems.includes(t.r))DataManager.data.emblems.push(t.r);}
+else if(t.rt==='banner'){if(!DataManager.data.banners)DataManager.data.banners=[];if(!DataManager.data.banners.includes(t.r))DataManager.data.banners.push(t.r);}
+const _unTo=t.rt==='ball'?I18N.t('toast_skin_unlock'):t.rt==='trail'?I18N.t('toast_trail_unlock'):t.rt==='bg'?I18N.t('toast_bg_unlock'):t.rt==='emblem'?I18N.t('toast_emblem_unlock'):I18N.t('toast_banner_unlock');
+showToast(_unTo);
+showMissionBanner(I18N.t(d.nameKey),_unTo);
 DataManager.save();renderMissions();updateMissionDot();
 };
 });
@@ -4068,6 +4080,17 @@ const ARR={ball:'skins',trail:'trails',bg:'backgrounds',emblem:'emblems',banner:
 d.unlockedPacks.forEach(pid=>{const pack=PACKS.find(p=>p.id===pid);if(!pack||pack.type!=='skin'||!pack.content)return;
   pack.content.forEach(i=>{const k=ARR[i.type];if(!k)return;if(!d[k])d[k]=[];if(!d[k].includes(i.id)){d[k].push(i.id);changed=true;}});});
 if(changed)DataManager.save();
+}
+// Débloque les cosmétiques type:'division' (emblèmes/bannières) quand le joueur
+// a atteint le palier requis (duelBestLeague = meilleur total de ligue all-time).
+// Appelée au chargement et après chaque duel. Silencieuse au chargement (toast=false).
+function reconcileDivisionUnlocks(toast){
+const d=DataManager.data;const best=d.duelBestLeague||0;let changed=false;
+const grant=(obj,ownedKey,unTo)=>{if(!d[ownedKey])d[ownedKey]=[];for(const id in obj){const it=obj[id];if(it&&it.type==='division'&&best>=(it.divPts||0)&&!d[ownedKey].includes(id)){d[ownedKey].push(id);changed=true;if(toast){try{showToast(I18N.t(unTo));}catch(e){}}}}};
+try{grant(EMBLEMS,'emblems','toast_emblem_unlock');}catch(e){}
+try{grant(BANNERS,'banners','toast_banner_unlock');}catch(e){}
+if(changed)DataManager.save();
+return changed;
 }
 function deliverEntitlement(productId){
 const pack=PACKS.find(p=>p.id===productId);
@@ -4704,6 +4727,12 @@ const DuelManager=(function(){
     d.leaguePoints=Math.max(0,(d.leaguePoints||0)+delta);
     const _newRank=rankFor(d.leaguePoints),_promo=(_oldRank.name!==_newRank.name)?(delta>0?'up':'down'):null; // changement de division/palier
     d.duelBestLeague=Math.max(d.duelBestLeague||0,d.leaguePoints); // pour les missions "atteindre une ligue"
+    // Gemmes BLEUES à la montée de division (1× par division all-time → pas de farm via reset doux).
+    // peakIdx = division max jamais atteinte ; +2 bleues/division, +4 bonus à chaque nouveau palier.
+    {const peakIdx=Math.floor((d.duelBestLeague||0)/100);
+     if(d.duelBlueIdx==null)d.duelBlueIdx=peakIdx; // init : pas de récompense rétroactive
+     else if(peakIdx>d.duelBlueIdx){const divs=peakIdx-d.duelBlueIdx,tiers=Math.floor(peakIdx/3)-Math.floor(d.duelBlueIdx/3);const bg=divs*2+tiers*4;d.duelBlueIdx=peakIdx;d.gemsBlue=(d.gemsBlue||0)+bg;try{showToast(I18N.t('duel_blue_reward',bg));}catch(e){}}}
+    try{reconcileDivisionUnlocks(true);}catch(e){} // débloque emblèmes/bannières de palier atteints
     // bonus : 1re VICTOIRE classée du jour → gemmes (incite à revenir, 1×/jour)
     if(res==='win'){const _t=new Date().toDateString();if(d.duelDailyWinDate!==_t){d.duelDailyWinDate=_t;d.gems=(d.gems||0)+15;try{showToast(I18N.t('duel_daily_win'));}catch(e){}}}
     recordH2H();
@@ -4932,6 +4961,13 @@ const DuelManager=(function(){
     if(I18N.L.de)Object.assign(I18N.L.de,{emb_soccer:'Fußball',emb_hoop:'Basketball',emb_whistle:'Pfeife',emb_medal:'Medaille',ban_pitch_ban:'Spielfeld',ban_court_ban:'Court',ban_stadium_ban:'Stadion'});
     if(I18N.L.it)Object.assign(I18N.L.it,{emb_soccer:'Pallone',emb_hoop:'Basket',emb_whistle:'Fischietto',emb_medal:'Medaglia',ban_pitch_ban:'Campo',ban_court_ban:'Parquet',ban_stadium_ban:'Stadio'});
     if(I18N.L.pt)Object.assign(I18N.L.pt,{emb_soccer:'Bola',emb_hoop:'Basquete',emb_whistle:'Apito',emb_medal:'Medalha',ban_pitch_ban:'Campo',ban_court_ban:'Quadra',ban_stadium_ban:'Estádio'});
+    // Déblocages : missions emblème/bannière, paliers de division, gemmes bleues de promotion
+    Object.assign(I18N.L.en,{toast_emblem_unlock:'Emblem unlocked!',toast_banner_unlock:'Banner unlocked!',toast_division_locked:'Reach {0} to unlock',duel_blue_reward:'Promotion! +{0} <span class="gem-b"></span>',unlock_emblems_name:'Emblems',unlock_banners_name:'Banners'});
+    Object.assign(I18N.L.fr,{toast_emblem_unlock:'Emblème débloqué !',toast_banner_unlock:'Bannière débloquée !',toast_division_locked:'Atteins {0} pour débloquer',duel_blue_reward:'Promotion ! +{0} <span class="gem-b"></span>',unlock_emblems_name:'Emblèmes',unlock_banners_name:'Bannières'});
+    if(I18N.L.es)Object.assign(I18N.L.es,{toast_emblem_unlock:'¡Emblema desbloqueado!',toast_banner_unlock:'¡Estandarte desbloqueado!',toast_division_locked:'Alcanza {0} para desbloquear',duel_blue_reward:'¡Ascenso! +{0} <span class="gem-b"></span>',unlock_emblems_name:'Emblemas',unlock_banners_name:'Estandartes'});
+    if(I18N.L.de)Object.assign(I18N.L.de,{toast_emblem_unlock:'Emblem freigeschaltet!',toast_banner_unlock:'Banner freigeschaltet!',toast_division_locked:'Erreiche {0} zum Freischalten',duel_blue_reward:'Aufstieg! +{0} <span class="gem-b"></span>',unlock_emblems_name:'Embleme',unlock_banners_name:'Banner'});
+    if(I18N.L.it)Object.assign(I18N.L.it,{toast_emblem_unlock:'Emblema sbloccato!',toast_banner_unlock:'Striscione sbloccato!',toast_division_locked:'Raggiungi {0} per sbloccare',duel_blue_reward:'Promozione! +{0} <span class="gem-b"></span>',unlock_emblems_name:'Emblemi',unlock_banners_name:'Striscioni'});
+    if(I18N.L.pt)Object.assign(I18N.L.pt,{toast_emblem_unlock:'Emblema desbloqueado!',toast_banner_unlock:'Faixa desbloqueada!',toast_division_locked:'Alcança {0} para desbloquear',duel_blue_reward:'Promoção! +{0} <span class="gem-b"></span>',unlock_emblems_name:'Emblemas',unlock_banners_name:'Faixas'});
     // Missions de duel + déblocages (6 langues principales)
     Object.assign(I18N.L.en,{dm_group:'Duels',dm_wins:'Duel wins',dm_league:'Climb the league',dm_played:'Duels played',unlock_duelwins:'{0} duel wins',unlock_duelplayed:'{0} duels played',stat_duel_wins:'Wins',stat_duel_losses:'Losses',stat_duel_winrate:'Win rate',stat_duel_played:'Duels played',stat_duel_league:'Current league',stat_duel_best_league:'Best league'});
     Object.assign(I18N.L.fr,{dm_group:'Duels',dm_wins:'Victoires en duel',dm_league:'Grimper en ligue',dm_played:'Duels joués',unlock_duelwins:'{0} victoires en duel',unlock_duelplayed:'{0} duels joués',stat_duel_wins:'Victoires',stat_duel_losses:'Défaites',stat_duel_winrate:'% Victoire',stat_duel_played:'Duels joués',stat_duel_league:'Ligue actuelle',stat_duel_best_league:'Meilleure ligue'});
