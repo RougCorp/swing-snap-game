@@ -2279,9 +2279,9 @@ draw(ctx){if(this.rope){ctx.beginPath();ctx.moveTo(this.rope.pos.x,this.rope.pos
 ctx.save();ctx.translate(this.pos.x,this.pos.y);const _hg=ctx.createRadialGradient(0,0,2,0,0,22);_hg.addColorStop(0,bs.color);_hg.addColorStop(1,'rgba(0,0,0,0)');ctx.globalAlpha=.26;ctx.fillStyle=_hg;ctx.beginPath();ctx.arc(0,0,22,0,6.28);ctx.fill();ctx.restore();
 ctx.save();ctx.translate(this.pos.x,this.pos.y);ctx.rotate(Date.now()/250);ctx.shadowBlur=13;ctx.shadowColor=bs.color;ctx.fillStyle=bs.color;bs.draw(ctx);ctx.restore();
 // Occlusion ambiante douce (bord bas-droite assombri) → relief 3D universel, faible alpha pour ne pas salir les skins sombres
-ctx.save();ctx.translate(this.pos.x,this.pos.y);ctx.beginPath();ctx.arc(0,0,10,0,6.28);ctx.clip();const _ao=ctx.createRadialGradient(2.5,3.5,4,2.5,3.5,12);_ao.addColorStop(0,'rgba(0,0,0,0)');_ao.addColorStop(1,'rgba(0,0,0,.2)');ctx.fillStyle=_ao;ctx.fillRect(-11,-11,22,22);ctx.restore();
+if(!DataManager.data.reduceFx){if(!this._aoGrad){this._aoGrad=ctx.createRadialGradient(2.5,3.5,4,2.5,3.5,12);this._aoGrad.addColorStop(0,'rgba(0,0,0,0)');this._aoGrad.addColorStop(1,'rgba(0,0,0,.2)');}ctx.save();ctx.translate(this.pos.x,this.pos.y);ctx.beginPath();ctx.arc(0,0,10,0,6.28);ctx.clip();ctx.fillStyle=this._aoGrad;ctx.fillRect(-11,-11,22,22);ctx.restore();}
 // Reflet spéculaire (lumière fixe en haut-gauche) → tous les skins paraissent vernis/3D
-ctx.save();ctx.translate(this.pos.x,this.pos.y);const _sp=ctx.createRadialGradient(-3.5,-4,0,-3.5,-4,4.5);_sp.addColorStop(0,'rgba(255,255,255,.65)');_sp.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=_sp;ctx.beginPath();ctx.arc(-3.5,-4,4.5,0,6.28);ctx.fill();ctx.restore();}
+if(!this._spGrad){this._spGrad=ctx.createRadialGradient(-3.5,-4,0,-3.5,-4,4.5);this._spGrad.addColorStop(0,'rgba(255,255,255,.65)');this._spGrad.addColorStop(1,'rgba(255,255,255,0)');}ctx.save();ctx.translate(this.pos.x,this.pos.y);ctx.fillStyle=this._spGrad;ctx.beginPath();ctx.arc(-3.5,-4,4.5,0,6.28);ctx.fill();ctx.restore();}
 }
 
 // === GAME CLASS ===
