@@ -42,6 +42,8 @@
     { id: 'starter',  type: 'non_consumable', fallback: '1,99 €' },
     { id: 'cosmic',   type: 'non_consumable', fallback: '3,49 €' },
     { id: 'ultimate', type: 'non_consumable', fallback: '4,99 €' },
+    { id: 'eclipse',  type: 'non_consumable', fallback: '3,99 €' },
+    { id: 'prism',    type: 'non_consumable', fallback: '4,49 €' },
   ];
 
   // --- State ---------------------------------------------------------------
